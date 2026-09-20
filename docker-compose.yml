@@ -1,0 +1,163 @@
+name: logitrack
+
+services:
+  # --- Infraestructura ----------------------------------------------------
+  postgres:
+    # Imagen de TimescaleDB sobre PostgreSQL 16 (sección 5 del documento).
+    image: timescale/timescaledb:2.17.2-pg16
+    container_name: logitrack-postgres
+    environment:
+      POSTGRES_USER: logitrack
+      POSTGRES_PASSWORD: logitrack
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/init-db.sql:/docker-entrypoint-initdb.d/00-init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logitrack -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [logitrack]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: logitrack-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: logitrack
+      RABBITMQ_DEFAULT_PASS: logitrack
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Consola web: http://localhost:15672 (logitrack/logitrack)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [logitrack]
+
+  redis:
+    image: redis:7-alpine
+    container_name: logitrack-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks: [logitrack]
+
+  # --- Microservicios -----------------------------------------------------
+  fleet-service:
+    build: ./fleet-service
+    container_name: logitrack-fleet
+    environment:
+      DATABASE_URL: postgresql+asyncpg://logitrack:logitrack@postgres:5432/fleet_db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      EXCHANGE_EVENTOS: logitrack.events
+      COLA_CONSUMIDOR: fleet.inbox
+      BUS_HABILITADO: "true"
+      ENTORNO: docker
+      LOG_LEVEL: INFO
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [logitrack]
+
+  tracking-service:
+    build: ./tracking-service
+    container_name: logitrack-tracking
+    environment:
+      DATABASE_URL: postgresql+asyncpg://logitrack:logitrack@postgres:5432/tracking_db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      EXCHANGE_EVENTOS: logitrack.events
+      BUS_HABILITADO: "true"
+      ENTORNO: docker
+      LOG_LEVEL: INFO
+      CHUNK_DIAS: "7"
+      VENTANA_AGREGACION_SEGUNDOS: "60"
+      UVICORN_WORKERS: "2"
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [logitrack]
+
+  routing-service:
+    build: ./routing-service
+    container_name: logitrack-routing
+    environment:
+      DATABASE_URL: postgresql+asyncpg://logitrack:logitrack@postgres:5432/routing_db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      EXCHANGE_EVENTOS: logitrack.events
+      COLA_CONSUMIDOR: routing.inbox
+      BUS_HABILITADO: "true"
+      ENTORNO: docker
+      LOG_LEVEL: INFO
+      FLEET_URL: http://fleet-service:8001
+      FLEET_TIMEOUT_SEGUNDOS: "3"
+      FLEET_MAX_REINTENTOS: "2"
+      CIRCUITO_ERRORES_ANTES_DE_ABRIR: "3"
+      CIRCUITO_RESET_SEGUNDOS: "30"
+      PROVEEDOR_MAPAS: simulado
+      REDIS_HABILITADO: "true"
+      REDIS_URL: redis://redis:6379/0
+      REDIS_TTL_ETA_SEGUNDOS: "300"
+      VELOCIDAD_ESTIMACION_KMH: "40"
+      FACTOR_ROTERO: "1.3"
+      LIMITE_CONDUCCION_MIN: "270"
+      PAUSA_DESCANSO_MIN: "45"
+      UMBRAL_DESVIO_MIN: "15"
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [logitrack]
+
+  shipment-service:
+    build: ./shipment-service
+    container_name: logitrack-shipment
+    environment:
+      DATABASE_URL: postgresql+asyncpg://logitrack:logitrack@postgres:5432/shipment_db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      EXCHANGE_EVENTOS: logitrack.events
+      COLA_CONSUMIDOR: shipment.inbox
+      BUS_HABILITADO: "true"
+      ENTORNO: docker
+      LOG_LEVEL: INFO
+      MARGEN_SLA_MIN: "15"
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [logitrack]
+
+volumes:
+  postgres_data:
+
+networks:
+  logitrack:
+    driver: bridge

@@ -1,0 +1,15 @@
+.venv
+venv
+__pycache__
+*.pyc
+tests/
+docs/
+.env
+pytest.ini
+.flake8
+README.md
+*.md
+*.db
+.git
+Dockerfile
+.gitignore
