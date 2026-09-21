@@ -17,9 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import SessionLocal
-from app.events.base import EventoDominio, PublicadorEventos
+from app.events.base import EventoDominio, EventoNoRuteable, PublicadorEventos
 from app.models import OutboxEvent
-from app.observabilidad import log, trace_id_ctx
+from app.observabilidad import eventos_no_entregados, log, trace_id_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -106,14 +106,30 @@ class RelayOutbox:
                 )
                 try:
                     await self._publicador.publicar(evento)
+                except EventoNoRuteable as exc:  # mandatory: sin cola destino
+                    fila.intentos += 1
+                    fila.ultimo_error = exc.motivo[:500]
+                    eventos_no_entregados.labels(fila.event_type, "no_enrutado").inc()
+                    log(
+                        logger,
+                        logging.WARNING,
+                        "outbox.evento_no_ruteado",
+                        event_id=fila.event_id,
+                        event_type=fila.event_type,
+                        intentos=fila.intentos,
+                        motivo=exc.motivo,
+                    )
+                    continue
                 except Exception as exc:  # broker caído: se reintenta luego
                     fila.intentos += 1
                     fila.ultimo_error = str(exc)[:500]
+                    eventos_no_entregados.labels(fila.event_type, "conexion").inc()
                     log(
                         logger,
                         logging.WARNING,
                         "outbox.publicacion_fallida",
                         event_id=fila.event_id,
+                        event_type=fila.event_type,
                         intentos=fila.intentos,
                     )
                     continue

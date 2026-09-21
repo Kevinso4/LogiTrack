@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.errores import ConflictoRecurso, RecursoNoEncontrado, ReglaNegocioViolada
+from app.errores import RecursoNoEncontrado
 from app.models import Envio, HistorialEnvio
 from app.schemas import (
     DevolucionRequest,
@@ -30,16 +30,6 @@ from app.servicios import crear_envio, devolver, entregar, incidente, listar_env
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["envios"])
-
-
-def _manejar_errores(exc: Exception) -> None:
-    if isinstance(exc, RecursoNoEncontrado):
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    if isinstance(exc, (ConflictoRecurso,)):
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    if isinstance(exc, ReglaNegocioViolada):
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    raise exc
 
 
 @router.post(
@@ -121,16 +111,13 @@ async def reportar_incidente(
     cuerpo: IncidenteRequest,
     session: AsyncSession = Depends(get_session),
 ) -> Envio:
-    try:
-        return await incidente(
-            session,
-            shipment_id,
-            tipo=cuerpo.tipo,
-            confirmado=cuerpo.confirmado,
-            motivo=cuerpo.motivo,
-        )
-    except Exception as exc:
-        _manejar_errores(exc)
+    return await incidente(
+        session,
+        shipment_id,
+        tipo=cuerpo.tipo,
+        confirmado=cuerpo.confirmado,
+        motivo=cuerpo.motivo,
+    )
 
 
 @router.post(
@@ -143,10 +130,7 @@ async def entregar_envio(
     cuerpo: PruebaEntregaRequest,
     session: AsyncSession = Depends(get_session),
 ) -> Envio:
-    try:
-        return await entregar(session, shipment_id, cuerpo)
-    except Exception as exc:
-        _manejar_errores(exc)
+    return await entregar(session, shipment_id, cuerpo)
 
 
 @router.post(
@@ -159,7 +143,4 @@ async def devolver_envio(
     cuerpo: DevolucionRequest,
     session: AsyncSession = Depends(get_session),
 ) -> Envio:
-    try:
-        return await devolver(session, shipment_id, motivo=cuerpo.motivo)
-    except Exception as exc:
-        _manejar_errores(exc)
+    return await devolver(session, shipment_id, motivo=cuerpo.motivo)

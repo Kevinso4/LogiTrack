@@ -25,6 +25,13 @@ ESTADOS_FINALES: Set[EstadoEnvio] = {EstadoEnvio.ENTREGADO, EstadoEnvio.RETORNAD
 
 # Matriz de transiciones permitidas. Modernizar un estado es un caso de
 # negocio aparte, no una decisión ad-hoc del controller.
+#
+# `retrasado -> en_ruta` existe SOLO para el consumo de eventos
+# (route.assigned/route.recalculated cuando el vehículo vuelve a estar
+# disponible); ningún endpoint REST puede entrar en `en_ruta` (el control de
+# origen vive en `app.servicios._transicionar`). `retrasado -> incidente`
+# queda PROHIBIDO: reabrir la saga de incidente desde un retraso es un
+# retroceso que solo duplicaba `shipment.incident`.
 TRANSICIONES: Dict[EstadoEnvio, Set[EstadoEnvio]] = {
     EstadoEnvio.EN_ALMACEN: {
         EstadoEnvio.EN_RUTA,
@@ -39,7 +46,7 @@ TRANSICIONES: Dict[EstadoEnvio, Set[EstadoEnvio]] = {
         EstadoEnvio.RETORNADO,
     },
     EstadoEnvio.RETRASADO: {
-        EstadoEnvio.INCIDENTE,
+        EstadoEnvio.EN_RUTA,
         EstadoEnvio.ENTREGADO,
         EstadoEnvio.RETORNADO,
     },

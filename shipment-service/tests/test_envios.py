@@ -17,6 +17,7 @@ from app.schemas import (
 )
 from app.servicios import (
     _payload_creado,
+    _transicionar,
     aplicar_customs_cleared,
     aplicar_customs_held,
     aplicar_route_assigned,
@@ -277,3 +278,89 @@ async def test_no_se_puede_devolver_un_retornado(envio_valido, evento_route_assi
     async with SessionLocal() as session:
         with pytest.raises(ConflictoRecurso):
             await devolver(session, envio.id)
+
+
+async def test_retrasado_a_incidente_prohibido(envio_valido):
+    envio = await _crear(envio_valido)
+    payload = RouteUnassignablePayload(
+        ruta_id="r-900", shipment_id=envio.id, motivo="sin vehículo viable"
+    )
+    async with SessionLocal() as session:
+        await aplicar_route_unassignable(session, payload)
+    async with SessionLocal() as session:
+        with pytest.raises(ReglaNegocioViolada):
+            await incidente(session, envio.id, tipo="averia", confirmado=True)
+
+
+async def test_retrasado_no_publica_incidente(envio_valido):
+    envio = await _crear(envio_valido)
+    payload = RouteUnassignablePayload(
+        ruta_id="r-900", shipment_id=envio.id, motivo="sin vehículo viable"
+    )
+    async with SessionLocal() as session:
+        await aplicar_route_unassignable(session, payload)
+        with pytest.raises(ReglaNegocioViolada):
+            await incidente(session, envio.id, tipo="averia", confirmado=True)
+        tipos = await _tipos_eventos(session)
+        assert "shipment.incident" not in tipos
+
+
+async def test_retrasado_a_en_ruta_via_evento_permitido(envio_valido, evento_route_assigned):
+    envio = await _crear(envio_valido)
+    payload = RouteUnassignablePayload(
+        ruta_id="r-900", shipment_id=envio.id, motivo="sin vehículo viable"
+    )
+    async with SessionLocal() as session:
+        await aplicar_route_unassignable(session, payload)
+    asignada = RouteAssignedPayload.model_validate(evento_route_assigned["payload"])
+    asignada.shipment_id = envio.id
+    async with SessionLocal() as session:
+        envio = await aplicar_route_assigned(session, asignada)
+        assert envio.estado == EstadoEnvio.EN_RUTA.value
+        assert envio.ruta_id == asignada.ruta_id
+
+
+async def test_entrar_en_ruta_desde_api_prohibido(envio_valido):
+    envio = await _crear(envio_valido)
+    async with SessionLocal() as session:
+        with pytest.raises(ReglaNegocioViolada):
+            await _transicionar(session, envio, EstadoEnvio.EN_RUTA, motivo="intento desde API")
+        await session.rollback()
+
+
+async def test_entregado_no_sale_por_incidente_ni_devolucion(envio_valido, evento_route_assigned):
+    envio = await _crear(envio_valido)
+    asignada = RouteAssignedPayload.model_validate(evento_route_assigned["payload"])
+    asignada.shipment_id = envio.id
+    async with SessionLocal() as session:
+        await aplicar_route_assigned(session, asignada, hacer_commit=False)
+        await session.commit()
+    async with SessionLocal() as session:
+        await entregar(
+            session, envio.id, PruebaEntregaRequest(nombre_recibe="Ana"), hacer_commit=False
+        )
+        await session.commit()
+    async with SessionLocal() as session:
+        with pytest.raises(ReglaNegocioViolada):
+            await incidente(session, envio.id, tipo="averia", confirmado=True)
+    async with SessionLocal() as session:
+        with pytest.raises(ConflictoRecurso):
+            await devolver(session, envio.id)
+
+
+async def test_retornado_no_sale_por_incidente_ni_entrega(envio_valido, evento_route_assigned):
+    envio = await _crear(envio_valido)
+    asignada = RouteAssignedPayload.model_validate(evento_route_assigned["payload"])
+    asignada.shipment_id = envio.id
+    async with SessionLocal() as session:
+        await aplicar_route_assigned(session, asignada, hacer_commit=False)
+        await session.commit()
+    async with SessionLocal() as session:
+        await devolver(session, envio.id, motivo="destinatario ausente", hacer_commit=False)
+        await session.commit()
+    async with SessionLocal() as session:
+        with pytest.raises(ReglaNegocioViolada):
+            await incidente(session, envio.id, tipo="averia", confirmado=True)
+    async with SessionLocal() as session:
+        with pytest.raises(ConflictoRecurso):
+            await entregar(session, envio.id, PruebaEntregaRequest(nombre_recibe="Ana"))

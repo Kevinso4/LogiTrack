@@ -8,13 +8,24 @@ from typing import Awaitable, Callable, Optional
 
 import aio_pika
 from aio_pika.abc import AbstractRobustConnection
+from aio_pika.exceptions import DeliveryError
 
-from app.events.base import EventoDominio, PublicadorEventos
+from app.events.base import EventoDominio, EventoNoRuteable, PublicadorEventos
 from app.observabilidad import eventos_consumidos, eventos_publicados, log, trace_id_ctx
 
 logger = logging.getLogger(__name__)
 
 SUFIJO_DLX = ".dlx"
+
+# Matriz de eventos (sección 3 del documento): eventos que SÍ tienen alguna
+# cola suscrita en el exchange. shipment.delivered / shipment.returned /
+# shipment.delayed son notificaciones que nadie consume (matriz de la sección
+# 3), así que NO se les aplica `mandatory`: el broker las devolvería siempre y
+# el relay las retendría como "no enrutable" sin remedio.
+EVENTOS_CON_CONSUMIDORES = {
+    "shipment.created",  # routing-service (routing.inbox)
+    "shipment.incident",  # fleet-service (fleet.inbox)
+}
 
 
 class PublicadorRabbitMQ(PublicadorEventos):
@@ -31,11 +42,32 @@ class PublicadorRabbitMQ(PublicadorEventos):
             if self._conexion and not self._conexion.is_closed:
                 return
             self._conexion = await aio_pika.connect_robust(self._url)
-            self._canal = await self._conexion.channel(publisher_confirms=True)
+            # on_return_raises=True: si con `mandatory` el broker devuelve el
+            # mensaje (ninguna cola suscrita), el publish revienta con
+            # DeliveryError en vez de perderse en silencio. Sin esto el outbox
+            # lo marcaría como publicado aunque RabbitMQ lo descartó.
+            self._canal = await self._conexion.channel(
+                publisher_confirms=True, on_return_raises=True
+            )
+            self._canal.return_callbacks.add(self._al_volver)
             self._exchange = await self._canal.declare_exchange(
                 self._nombre_exchange, aio_pika.ExchangeType.TOPIC, durable=True
             )
             log(logger, logging.INFO, "bus.conectado", exchange=self._nombre_exchange)
+
+    def _al_volver(self, mensaje: aio_pika.abc.AbstractIncomingMessage) -> None:
+        """Gancho de observabilidad de mensajes devueltos por el broker.
+
+        Con `on_return_raises=True` el señal de caída es DeliveryError (lo
+        trata el relay); este callback queda registrado para el caso de
+        diagnosticar con `on_return_raises=False` sin duplicar la métrica.
+        """
+        log(
+            logger,
+            logging.WARNING,
+            "evento.devuelto",
+            routing_key=getattr(mensaje, "routing_key", None),
+        )
 
     async def publicar(self, evento: EventoDominio) -> None:
         if self._exchange is None:
@@ -48,8 +80,17 @@ class PublicadorRabbitMQ(PublicadorEventos):
             message_id=evento.event_id,
             headers={"trace_id": evento.trace_id or "-", "producer": evento.producer},
         )
-        # publisher_confirms=True: el await no vuelve hasta que el broker confirma.
-        await self._exchange.publish(mensaje, routing_key=evento.event_type)
+        try:
+            # publisher_confirms=True: el await no vuelve hasta que el broker
+            # confirma. `mandatory` (solo eventos con consumidores): si no hay
+            # cola destino, el broker devuelve el mensaje y rise DeliveryError.
+            await self._exchange.publish(
+                mensaje,
+                routing_key=evento.event_type,
+                mandatory=evento.event_type in EVENTOS_CON_CONSUMIDORES,
+            )
+        except DeliveryError as exc:
+            raise EventoNoRuteable(evento.event_type, str(exc)) from exc
         eventos_publicados.labels(evento.event_type).inc()
         log(
             logger,

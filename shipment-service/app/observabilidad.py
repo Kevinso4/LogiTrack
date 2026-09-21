@@ -38,6 +38,12 @@ eventos_consumidos = Counter(
     "Eventos consumidos del bus",
     ["event_type", "resultado"],
 )
+eventos_no_entregados = Counter(
+    "shipment_eventos_no_entregados_total",
+    "Publicaciones no entregadas en el bus: no_enrutado = mandatory devuelto, "
+    "conexion = broker inaccesible",
+    ["event_type", "motivo"],
+)
 envios_creados = Counter(
     "shipment_envios_creados_total", "Envíos creados en total", ["internacional"]
 )

@@ -69,3 +69,20 @@ class PublicadorEnMemoria(PublicadorEventos):
 
     def por_tipo(self, event_type: str) -> List[EventoDominio]:
         return [e for e in self.publicados if e.event_type == event_type]
+
+
+class EventoNoRuteable(Exception):
+    """El broker devolvió el evento (`mandatory`): no había ninguna cola
+    suscrita a ese routing key en el exchange.
+
+    Distinguirlo de un fallo de conexión importa al relay del outbox: un
+    "no enrutable" no se arregla solo hasta que alguien cree la cola (y habrá
+    que reintentar o agotar `outbox_max_intentos`); un fallo de conexión se
+    resuelve cuando el broker vuelve. En ambos casos el evento queda PENDIENTE
+    (nunca se marca como publicado).
+    """
+
+    def __init__(self, event_type: str, motivo: str = "sin cola destino") -> None:
+        self.event_type = event_type
+        self.motivo = motivo
+        super().__init__(f"evento no enrutable ({event_type}): {motivo}")

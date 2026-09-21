@@ -37,6 +37,12 @@ eventos_consumidos = Counter(
     "Eventos consumidos del bus",
     ["event_type", "resultado"],
 )
+eventos_no_entregados = Counter(
+    "routing_eventos_no_entregados_total",
+    "Publicaciones no entregadas en el bus: no_enrutado = mandatory devuelto, "
+    "conexion = broker inaccesible",
+    ["event_type", "motivo"],
+)
 rutas_calculadas = Counter(
     "routing_rutas_calculadas_total", "Rutas fijadas o recalculadas", ["estado"]
 )

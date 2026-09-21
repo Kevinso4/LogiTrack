@@ -38,6 +38,12 @@ eventos_consumidos = Counter(
     "Eventos consumidos del bus",
     ["event_type", "resultado"],
 )
+eventos_no_entregados = Counter(
+    "fleet_eventos_no_entregados_total",
+    "Publicaciones no entregadas en el bus: no_enrutado = mandatory devuelto, "
+    "conexion = broker inaccesible",
+    ["event_type", "motivo"],
+)
 cambios_estado = Counter(
     "fleet_cambios_estado_total",
     "Cambios de estado de vehículo",

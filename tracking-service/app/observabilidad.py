@@ -47,6 +47,12 @@ lote_tamano = Histogram(
 eventos_publicados = Counter(
     "tracking_eventos_publicados_total", "Eventos publicados", ["event_type"]
 )
+eventos_no_entregados = Counter(
+    "tracking_eventos_no_entregados_total",
+    "Publicaciones no entregadas en el bus: solo se marca mandatory en "
+    "telemetry.aggregated, así que no_enrutado solo puede venir de ahí",
+    ["event_type", "motivo"],
+)
 eventos_fallidos = Counter(
     "tracking_eventos_fallidos_total", "Publicaciones fallidas", ["event_type"]
 )

@@ -66,10 +66,15 @@ async def _transicionar(
     evento_type: Optional[str] = None,
     evento_payload: Optional[Dict] = None,
     hacer_commit: bool = True,
+    origen: str = "api",
 ) -> Envio:
     desde = EstadoEnvio(envio.estado)
     if not transicion_valida(desde, hasta):
         raise ReglaNegocioViolada(f"Transición no permitida: {desde.value} -> {hasta.value}")
+    if hasta == EstadoEnvio.EN_RUTA and origen != "evento":
+        # Entrar en ruta lo decide Routing (route.assigned/recalculated,
+        # customs.cleared), nunca un endpoint REST.
+        raise ReglaNegocioViolada(f"En ruta solo vía eventos: {desde.value} -> {hasta.value}")
     envio.estado = hasta.value
     envio.motivo = motivo
     session.add(
@@ -164,6 +169,7 @@ async def aplicar_route_assigned(
         motivo="ruta asignada",
         evento_type=None,
         hacer_commit=hacer_commit,
+        origen="evento",
     )
 
 
@@ -185,6 +191,7 @@ async def aplicar_route_recalculated(
             EstadoEnvio.EN_RUTA,
             motivo=payload.motivo or "ruta recalculada",
             hacer_commit=False,
+            origen="evento",
         )
     if hacer_commit:
         await session.commit()
@@ -241,6 +248,7 @@ async def aplicar_customs_cleared(
         EstadoEnvio.EN_RUTA,
         motivo=payload.motivo or "desaduanado",
         hacer_commit=hacer_commit,
+        origen="evento",
     )
 
 
