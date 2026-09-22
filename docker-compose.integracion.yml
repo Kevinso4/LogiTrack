@@ -54,9 +54,13 @@ services:
       - "5672:5672"
       - "15672:15672"
     healthcheck:
-      # `ping` responde "sano" hasta 20 s antes de que el puerto 5672 acepte
-      # conexiones: dice que el nodo Erlang vive, no que el broker escuche.
-      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      # NO usar rabbitmq-diagnostics: arranca un nodo Erlang efimero que
+      # lee /var/lib/rabbitmq/.erlang.cookie, y al correr en paralelo con
+      # el arranque deja el archivo con permisos que el servidor ya no
+      # puede leer -> "Error when reading .erlang.cookie: eacces" y el
+      # broker muere antes de escuchar. Esta prueba abre el puerto 5672 y
+      # no toca ningun archivo.
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/5672' || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 10
