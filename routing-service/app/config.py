@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     # Circuit breaker: deja de llamar a Fleet un rato si acumula fallos.
     circuito_errores_antes_de_abrir: int = 3
     circuito_reset_segundos: float = 30.0
+    # Dialecto de Fleet: "propio" (nuestro servicio) o "companero" (capa
+    # anticorrupción; consulta su REST sin volumen_min_m3 y filtra en memoria).
+    fleet_dialecto: str = "propio"
 
     # --- proveedor de mapas ------------------------------------------------
     # Concentra TODA la dependencia del proveedor de mapas (sección 5g).

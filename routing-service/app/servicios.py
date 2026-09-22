@@ -15,7 +15,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache_redis import EtaCache
-from app.cliente_fleet import ClienteFleet, ClienteFleetREST, FleetNoDisponible
+from app.cliente_fleet import (
+    ClienteFleet,
+    ClienteFleetCompanero,
+    ClienteFleetREST,
+    FleetNoDisponible,
+)
 from app.config import get_settings
 from app.dominio import ESTADOS_ACTIVOS, EstadoRuta
 from app.errores import RecursoNoEncontrado
@@ -71,7 +76,13 @@ def configurar_adaptadores(
 def cliente_fleet() -> ClienteFleet:
     global _cliente_fleet_actual
     if _cliente_fleet_actual is None:
-        _cliente_fleet_actual = ClienteFleetREST(get_settings().fleet_url)
+        settings = get_settings()
+        if settings.fleet_dialecto == "companero":
+            # Seam 1 (PROMPT_INTEGRACION): Fleet del compañero, sin tocar la
+            # lógica de asignación (decisión de dialecto en la config: DIP).
+            _cliente_fleet_actual = ClienteFleetCompanero()
+        else:
+            _cliente_fleet_actual = ClienteFleetREST(settings.fleet_url)
     return _cliente_fleet_actual
 
 

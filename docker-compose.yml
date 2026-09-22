@@ -114,6 +114,7 @@ services:
       FLEET_URL: http://fleet-service:8001
       FLEET_TIMEOUT_SEGUNDOS: "3"
       FLEET_MAX_REINTENTOS: "2"
+      FLEET_DIALECTO: propio
       CIRCUITO_ERRORES_ANTES_DE_ABRIR: "3"
       CIRCUITO_RESET_SEGUNDOS: "30"
       PROVEEDOR_MAPAS: simulado
@@ -154,6 +155,29 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [logitrack]
+
+  # --- Capa anticorrupción (bajo perfil "interop"): NO arranca con up -d ---
+  interop-bridge:
+    build: ./interop-bridge
+    container_name: logitrack-interop
+    profiles: ["interop"]
+    environment:
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      EXCHANGE_EVENTOS: logitrack.events
+      EXCHANGE_FLEET: logitrack.fleet
+      EXCHANGE_SHIPMENT: logitrack.shipment
+      COLA_FLEET: interop.fleet
+      COLA_SHIPMENT: interop.shipment
+      BUS_HABILITADO: "true"
+      ENTORNO: docker
+      LOG_LEVEL: INFO
+    ports:
+      - "8005:8005"
+    depends_on:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped

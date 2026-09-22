@@ -1,0 +1,11 @@
+{
+  "event_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef00b4",
+  "event_type": "shipment.returned",
+  "occurred_at": "2030-01-17T09:00:00+00:00",
+  "producer": "shipment-service",
+  "trace_id": null,
+  "payload": {
+    "shipment_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef0001",
+    "motivo": "devolución al origen"
+  }
+}

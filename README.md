@@ -12,6 +12,7 @@ multi-stage y CI con GitHub Actions.
 | **tracking-service** | 8002 | `tracking_db` (PostgreSQL + TimescaleDB) | `telemetry.raw`, `telemetry.aggregated` | *ninguno* |
 | **routing-service** | 8003 | `routing_db` (PostgreSQL 16) | `route.assigned`, `route.recalculated`, `route.unassignable` | `shipment.created`, `telemetry.aggregated`, `vehicle.status_changed` |
 | **shipment-service** | 8004 | `shipment_db` (PostgreSQL 16) | `shipment.created`, `shipment.delivered`, `shipment.incident`, `shipment.returned`, `shipment.delayed` | `route.assigned`, `route.recalculated`, `route.unassignable`, `customs.held`, `customs.cleared` |
+| **interop-bridge** (perfil `interop`) | 8005 | *ninguna* | `vehicle.status_changed`, `shipment.incident` (traducidos) | `shipment.incident` (propio), `vehicle.status_changed` (compañero) |
 
 > `customs.held` y `customs.cleared` son un **desvío deliberado** de la matriz:
 > el Shipment Service escucha además de los eventos de ruta la retención en
@@ -30,12 +31,21 @@ Eso arranca PostgreSQL/TimescaleDB, RabbitMQ, Redis (caché de ETA opcional) y
 los cuatro servicios. Las migraciones de Alembic corren solas al iniciar cada
 contenedor.
 
+El **interop-bridge** (capa anticorrupción con el Fleet del compañero) arranca
+solo con su perfil, para que el stack base no dependa de la disponibilidad de
+ese Fleet:
+
+```bash
+docker compose up -d --build --profile interop
+```
+
 | Qué | Dónde |
 |---|---|
 | Swagger de Fleet | http://localhost:8001/docs |
 | Swagger de Tracking | http://localhost:8002/docs |
 | Swagger de Routing | http://localhost:8003/docs |
 | Swagger de Shipment | http://localhost:8004/docs |
+| Health del Interop Bridge | http://localhost:8005/health/live |
 | Consola de RabbitMQ | http://localhost:15672 (`logitrack` / `logitrack`) |
 | Métricas Prometheus | `:8001/metrics` … `:8004/metrics` |
 
@@ -75,8 +85,9 @@ los eventos se quedan en el outbox.
 ```bash
 cd fleet-service    && pytest -q     # 25 tests
 cd tracking-service && pytest -q     # 27 tests
-cd routing-service  && pytest -q     # 42 tests
-cd shipment-service && pytest -q     # 31 tests
+cd routing-service  && pytest -q     # 56 tests
+cd shipment-service && pytest -q     # 44 tests
+cd interop-bridge   && pytest -q     # 12 tests   # total: 164
 ```
 
 Corren contra SQLite y con el bus en memoria: **no necesitan Docker**, que es
@@ -236,6 +247,12 @@ Probado de punta a punta: al publicar un `maintenance.alert` con severidad
 crítica, Fleet cambia el vehículo a `en_mantenimiento`, emite
 `vehicle.status_changed` y ese vehículo desaparece de `/disponibles`.
 
+Y con el stack real en Docker (desde el contenedor): el `simulador_iot.py`
+manda lotes a Tracking, la ventana de agregación escribe `telemetry.aggregated`
+en el outbox y el relay lo entrega a Routing, que lo registra en su
+`processed_events`. El `interop-bridge` (perfil `interop`) declara sus colas y
+DLQ y conecta con RabbitMQ; su `/health/ready` reporta `bus: sano`.
+
 ### La saga del incidente (Routing + Shipment + Fleet)
 
 ```
@@ -352,13 +369,20 @@ logitrack/
 │   ├── alembic/versions/       # esquema de routing_db
 │   ├── scripts/datos_prueba.py
 │   └── tests/
-└── shipment-service/
+├── shipment-service/
+│   ├── app/
+│   │   ├── dominio.py          # máquina de estados del envío
+│   │   ├── servicios.py        # ciclo de vida completo
+│   │   ├── events/             # consumidor de ruta y aduana
+│   │   └── routers/
+│   ├── alembic/versions/       # esquema de shipment_db
+│   ├── scripts/datos_prueba.py
+│   └── tests/
+└── interop-bridge/             # capa anticorrupción (perfil Docker "interop")
     ├── app/
-    │   ├── dominio.py          # máquina de estados del envío
-    │   ├── servicios.py        # ciclo de vida completo
-    │   ├── events/             # consumidor de ruta y aduana
-    │   └── routers/
-    ├── alembic/versions/       # esquema de shipment_db
-    ├── scripts/datos_prueba.py
+    │   ├── traductor.py        # traducción pura de sobres y payloads
+    │   ├── interop.py          # espejo de la tabla de equivalencias (routing)
+    │   ├── bus.py              # exchanges/colas + DLQ, traduce en vivo
+    │   └── ...
     └── tests/
 ```

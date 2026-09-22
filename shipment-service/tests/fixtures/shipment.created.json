@@ -1,0 +1,20 @@
+{
+  "event_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef00b1",
+  "event_type": "shipment.created",
+  "occurred_at": "2030-01-15T08:00:00+00:00",
+  "producer": "shipment-service",
+  "trace_id": null,
+  "payload": {
+    "shipment_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef0001",
+    "client_id": "cliente-x",
+    "origen": { "lat": 8.75, "lon": -75.88, "direccion": "Industrial Las Américas, Montería" },
+    "destino": { "lat": 10.96, "lon": -74.77, "direccion": "Zona Franca, Barranquilla" },
+    "peso_kg": 8000,
+    "volumen_m3": 20,
+    "is_international": false,
+    "sla_deadline": "2026-09-25T20:00:00+00:00",
+    "requiere_refrigeracion": true,
+    "requiere_hazmat": false,
+    "ventana_entrega": { "desde": "2030-01-15T08:00:00+00:00", "hasta": "2030-01-15T20:00:00+00:00" }
+  }
+}

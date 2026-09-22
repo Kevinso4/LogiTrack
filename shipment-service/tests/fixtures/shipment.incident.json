@@ -1,0 +1,14 @@
+{
+  "event_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef00b2",
+  "event_type": "shipment.incident",
+  "occurred_at": "2030-01-16T10:00:00+00:00",
+  "producer": "shipment-service",
+  "trace_id": null,
+  "payload": {
+    "vehicle_id": "v-9a4c",
+    "shipment_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef0001",
+    "tipo": "averia",
+    "confirmado": true,
+    "motivo": "falla hidráulica"
+  }
+}

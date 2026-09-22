@@ -1,0 +1,13 @@
+{
+  "event_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef00a3",
+  "event_type": "route.unassignable",
+  "occurred_at": "2030-01-15T08:05:00+00:00",
+  "producer": "routing-service",
+  "trace_id": null,
+  "payload": {
+    "ruta_id": "r-5f0a",
+    "shipment_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef0001",
+    "motivo": "la ventana de entrega no es alcanzable con este vehículo",
+    "causa": "ventana_incumplible"
+  }
+}

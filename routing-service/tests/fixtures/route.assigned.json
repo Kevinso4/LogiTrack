@@ -1,0 +1,18 @@
+{
+  "event_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef00a1",
+  "event_type": "route.assigned",
+  "occurred_at": "2030-01-15T08:05:00+00:00",
+  "producer": "routing-service",
+  "trace_id": null,
+  "payload": {
+    "ruta_id": "r-5f0a",
+    "shipment_id": "f9cf8f4c-108d-4ac8-9fce-deadbeef0001",
+    "vehicle_id": "v-9a4c",
+    "vehicle_plate": "ABC-123",
+    "eta": "2030-01-15T08:30:00+00:00",
+    "distancia_km": 650,
+    "duracion_min": 1110,
+    "tipo_calculo": "calculado",
+    "motivo": "asignacion_inicial"
+  }
+}
