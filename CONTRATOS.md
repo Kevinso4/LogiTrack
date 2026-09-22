@@ -344,7 +344,7 @@ Servicio `interop-bridge/` (puerto `:8005`, perfil Docker `interop`, sin DB):
 Levantar:
 
 ```bash
-docker compose up -d --build --profile interop
+docker compose --profile interop up -d --build
 ```
 
 Para que Routing asigne contra el Fleet del compañero (en lugar del propio):

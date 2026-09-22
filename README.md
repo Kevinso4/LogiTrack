@@ -36,7 +36,7 @@ solo con su perfil, para que el stack base no dependa de la disponibilidad de
 ese Fleet:
 
 ```bash
-docker compose up -d --build --profile interop
+docker compose --profile interop up -d --build
 ```
 
 | Qué | Dónde |
