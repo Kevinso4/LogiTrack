@@ -122,37 +122,53 @@ class ConsumidorRabbitMQ:
         self._manejador = manejador
         self._prefetch = prefetch
         self._conexion: Optional[AbstractRobustConnection] = None
+        self._activo = False
+
+    @property
+    def activo(self) -> bool:
+        """Ya está alistado en el bus: evita que el conector lo arranque dos veces."""
+        return self._activo
 
     async def iniciar(self) -> None:
-        self._conexion = await aio_pika.connect_robust(self._url)
-        canal = await self._conexion.channel()
-        await canal.set_qos(prefetch_count=self._prefetch)
+        if self._activo:
+            return
+        try:
+            self._conexion = await aio_pika.connect_robust(self._url)
+            canal = await self._conexion.channel()
+            await canal.set_qos(prefetch_count=self._prefetch)
 
-        exchange = await canal.declare_exchange(
-            self._nombre_exchange, aio_pika.ExchangeType.TOPIC, durable=True
-        )
-        dlx = await canal.declare_exchange(
-            self._nombre_exchange + SUFIJO_DLX, aio_pika.ExchangeType.TOPIC, durable=True
-        )
-        cola_dlq = await canal.declare_queue(self._nombre_cola + ".dlq", durable=True)
-        await cola_dlq.bind(dlx, routing_key="#")
+            exchange = await canal.declare_exchange(
+                self._nombre_exchange, aio_pika.ExchangeType.TOPIC, durable=True
+            )
+            dlx = await canal.declare_exchange(
+                self._nombre_exchange + SUFIJO_DLX, aio_pika.ExchangeType.TOPIC, durable=True
+            )
+            cola_dlq = await canal.declare_queue(self._nombre_cola + ".dlq", durable=True)
+            await cola_dlq.bind(dlx, routing_key="#")
 
-        cola = await canal.declare_queue(
-            self._nombre_cola,
-            durable=True,
-            arguments={"x-dead-letter-exchange": self._nombre_exchange + SUFIJO_DLX},
-        )
-        for rk in self._routing_keys:
-            await cola.bind(exchange, routing_key=rk)
+            cola = await canal.declare_queue(
+                self._nombre_cola,
+                durable=True,
+                arguments={"x-dead-letter-exchange": self._nombre_exchange + SUFIJO_DLX},
+            )
+            for rk in self._routing_keys:
+                await cola.bind(exchange, routing_key=rk)
 
-        await cola.consume(self._procesar)
-        log(
-            logger,
-            logging.INFO,
-            "consumidor.iniciado",
-            cola=self._nombre_cola,
-            routing_keys=self._routing_keys,
-        )
+            await cola.consume(self._procesar)
+            self._activo = True
+            log(
+                logger,
+                logging.INFO,
+                "consumidor.iniciado",
+                cola=self._nombre_cola,
+                routing_keys=self._routing_keys,
+            )
+        except Exception:
+            # Si la declaración falla a medias, no dejar la conexión huérfana.
+            if self._conexion and not self._conexion.is_closed:
+                await self._conexion.close()
+            self._conexion = None
+            raise
 
     async def _procesar(self, mensaje: aio_pika.abc.AbstractIncomingMessage) -> None:
         evento: Optional[EventoDominio] = None
@@ -177,5 +193,6 @@ class ConsumidorRabbitMQ:
             trace_id_ctx.reset(token)
 
     async def detener(self) -> None:
+        self._activo = False
         if self._conexion and not self._conexion.is_closed:
             await self._conexion.close()

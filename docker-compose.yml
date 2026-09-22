@@ -32,10 +32,14 @@ services:
       - "5672:5672"    # AMQP
       - "15672:15672"  # Consola web: http://localhost:15672 (logitrack/logitrack)
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # check_port_connectivity: verifica que el puerto AMQP 5672 acepta
+      # conexiones. `ping` responde OK ~20 s antes de que el puerto esté listo
+      # y los servicios dependen de service_healthy.
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      start_period: 60s
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 12
     networks: [logitrack]
 
   redis:

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LogiTrack · Panel de Operaciones</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2129; --borde:#262d38;
+    --txt:#e6edf3; --txt2:#8b949e; --txt3:#6e7681;
+    --azul:#3b82f6; --verde:#22c55e; --ambar:#f59e0b; --rojo:#ef4444;
+    --teal:#14b8a6; --morado:#a78bfa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    font-size:14px; line-height:1.5; padding:16px;
+  }
+  .contenedor{max-width:1400px;margin:0 auto}
+
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    flex-wrap:wrap;gap:16px;margin-bottom:20px;
+    padding-bottom:16px;border-bottom:1px solid var(--borde);
+  }
+  .marca{display:flex;align-items:baseline;gap:10px}
+  .marca h1{font-size:22px;font-weight:700;letter-spacing:-0.3px}
+  .marca h1 span{color:var(--azul)}
+  .marca em{font-style:normal;color:var(--txt3);font-size:12px;letter-spacing:1.5px;text-transform:uppercase}
+
+  .servicios{display:flex;gap:8px;flex-wrap:wrap}
+  .srv{
+    display:flex;align-items:center;gap:7px;
+    background:var(--panel);border:1px solid var(--borde);
+    border-radius:6px;padding:6px 11px;font-size:12px;
+  }
+  .srv b{font-weight:600}
+  .srv small{color:var(--txt3);font-family:ui-monospace,Consolas,monospace}
+  .punto{width:8px;height:8px;border-radius:50%;background:var(--txt3);flex:none}
+  .punto.ok{background:var(--verde);box-shadow:0 0 8px rgba(34,197,94,.6)}
+  .punto.mal{background:var(--rojo)}
+
+  .barra{
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+    background:var(--panel);border:1px solid var(--borde);
+    border-radius:8px;padding:12px 14px;margin-bottom:18px;
+  }
+  button{
+    font:inherit;font-size:13px;font-weight:500;cursor:pointer;
+    background:var(--panel2);color:var(--txt);
+    border:1px solid var(--borde);border-radius:6px;padding:8px 14px;
+    transition:.15s;
+  }
+  button:hover:not(:disabled){border-color:var(--azul);color:#fff}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primario{background:var(--azul);border-color:var(--azul);color:#fff}
+  button.primario:hover:not(:disabled){background:#2563eb}
+  button.peligro{border-color:#7f1d1d;color:#fca5a5}
+  button.peligro:hover:not(:disabled){background:#7f1d1d;color:#fff;border-color:#7f1d1d}
+  .separador{width:1px;height:24px;background:var(--borde)}
+  .aviso{margin-left:auto;color:var(--txt3);font-size:12px}
+
+  .rejilla{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:980px){.rejilla{grid-template-columns:1fr}}
+
+  .caja{
+    background:var(--panel);border:1px solid var(--borde);
+    border-radius:8px;overflow:hidden;
+  }
+  .caja > h2{
+    font-size:12px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--txt2);padding:12px 14px;border-bottom:1px solid var(--borde);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .caja > h2 .cuenta{
+    background:var(--panel2);border-radius:20px;padding:2px 9px;
+    font-size:11px;letter-spacing:0;color:var(--txt2);
+  }
+  .cuerpo{max-height:440px;overflow-y:auto}
+  .cuerpo::-webkit-scrollbar{width:8px}
+  .cuerpo::-webkit-scrollbar-thumb{background:var(--borde);border-radius:4px}
+
+  .fila{
+    padding:11px 14px;border-bottom:1px solid var(--borde);
+    display:flex;align-items:center;gap:12px;cursor:default;
+  }
+  .fila:last-child{border-bottom:none}
+  .fila.clic{cursor:pointer}
+  .fila.clic:hover{background:var(--panel2)}
+  .fila.activa{background:rgba(59,130,246,.08);box-shadow:inset 3px 0 0 var(--azul)}
+  .fila .principal{flex:1;min-width:0}
+  .fila .titulo{font-weight:600;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+  .fila .sub{color:var(--txt3);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .etq{
+    font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;
+    white-space:nowrap;letter-spacing:.2px;flex:none;
+  }
+  .e-verde{background:rgba(34,197,94,.14);color:#4ade80}
+  .e-azul{background:rgba(59,130,246,.14);color:#60a5fa}
+  .e-ambar{background:rgba(245,158,11,.14);color:#fbbf24}
+  .e-rojo{background:rgba(239,68,68,.14);color:#f87171}
+  .e-teal{background:rgba(20,184,166,.14);color:#2dd4bf}
+  .e-gris{background:rgba(139,148,158,.14);color:var(--txt2)}
+
+  .vacio{padding:34px 14px;text-align:center;color:var(--txt3);font-size:13px}
+
+  .linea{padding:14px}
+  .hito{display:flex;gap:12px;padding-bottom:16px;position:relative}
+  .hito:last-child{padding-bottom:0}
+  .hito::before{
+    content:"";position:absolute;left:5px;top:16px;bottom:0;
+    width:1px;background:var(--borde);
+  }
+  .hito:last-child::before{display:none}
+  .bolita{width:11px;height:11px;border-radius:50%;flex:none;margin-top:4px;z-index:1;border:2px solid var(--panel)}
+  .hito .info{flex:1;min-width:0}
+  .hito .paso{font-size:13px;font-weight:600}
+  .hito .paso code{
+    font-family:ui-monospace,Consolas,monospace;font-size:12px;
+    background:var(--panel2);padding:1px 6px;border-radius:4px;color:var(--txt2);
+  }
+  .hito .motivo{color:var(--txt2);font-size:12px;margin-top:3px}
+  .hito .hora{color:var(--txt3);font-size:11px;font-family:ui-monospace,Consolas,monospace;margin-top:3px}
+
+  #consola{
+    margin-top:16px;background:#010409;border:1px solid var(--borde);
+    border-radius:8px;padding:12px 14px;
+    font-family:ui-monospace,Consolas,monospace;font-size:12px;
+    max-height:180px;overflow-y:auto;
+  }
+  #consola div{padding:2px 0;color:var(--txt2);white-space:pre-wrap;word-break:break-word}
+  #consola .ok{color:#4ade80}
+  #consola .err{color:#f87171}
+  #consola .hora{color:var(--txt3)}
+
+  footer{margin-top:18px;color:var(--txt3);font-size:11px;text-align:center}
+</style>
+</head>
+<body>
+<div class="contenedor">
+
+  <header>
+    <div class="marca">
+      <h1>LOGI<span>TRACK</span></h1>
+      <em>Panel de operaciones</em>
+    </div>
+    <div class="servicios" id="servicios"></div>
+  </header>
+
+  <div class="barra">
+    <button class="primario" id="btnVehiculo">+ Vehículo refrigerado</button>
+    <button class="primario" id="btnEnvio">+ Envío Montería → Cereté</button>
+    <div class="separador"></div>
+    <button class="peligro" id="btnAveria" disabled>Reportar avería del envío</button>
+    <div class="separador"></div>
+    <button id="btnRefrescar">Refrescar</button>
+    <span class="aviso" id="aviso">actualización automática cada 3 s</span>
+  </div>
+
+  <div class="rejilla">
+    <div class="caja">
+      <h2>Flota <span class="cuenta" id="nFlota">0</span></h2>
+      <div class="cuerpo" id="flota"><div class="vacio">Sin vehículos</div></div>
+    </div>
+
+    <div class="caja">
+      <h2>Envíos <span class="cuenta" id="nEnvios">0</span></h2>
+      <div class="cuerpo" id="envios"><div class="vacio">Sin envíos</div></div>
+    </div>
+  </div>
+
+  <div class="caja" style="margin-top:16px">
+    <h2>Trazabilidad del envío <span class="cuenta" id="envioSel">ninguno seleccionado</span></h2>
+    <div class="cuerpo linea" id="historial"><div class="vacio">Haz clic en un envío para ver su historial de transiciones</div></div>
+  </div>
+
+  <div id="consola"></div>
+
+  <footer>Universidad Cooperativa de Colombia · Montería — Arquitectura de microservicios</footer>
+</div>
+
+<script>
+const API = {
+  fleet:    "http://localhost:8001",
+  tracking: "http://localhost:8002",
+  routing:  "http://localhost:8003",
+  shipment: "http://localhost:8004",
+};
+
+let envioSeleccionado = null;
+let ultimosEnvios = [];
+
+// ---------- utilidades ----------
+const $ = id => document.getElementById(id);
+
+function log(msg, clase = "") {
+  const c = $("consola");
+  const d = document.createElement("div");
+  const t = new Date().toLocaleTimeString("es-CO", {hour12:false});
+  d.className = clase;
+  d.innerHTML = `<span class="hora">${t}</span>  ${msg}`;
+  c.prepend(d);
+  while (c.children.length > 60) c.removeChild(c.lastChild);
+}
+
+async function pedir(url, opciones = {}) {
+  const r = await fetch(url, {
+    headers: {"Content-Type": "application/json"},
+    ...opciones,
+  });
+  const txt = await r.text();
+  let datos = null;
+  try { datos = txt ? JSON.parse(txt) : null; } catch { datos = txt; }
+  if (!r.ok) {
+    const detalle = datos && datos.mensaje ? datos.mensaje : (typeof datos === "string" ? datos : JSON.stringify(datos));
+    throw new Error(`${r.status} — ${detalle}`);
+  }
+  return datos;
+}
+
+function lista(datos) {
+  if (Array.isArray(datos)) return datos;
+  if (datos && Array.isArray(datos.items)) return datos.items;
+  if (datos && Array.isArray(datos.envios)) return datos.envios;
+  return [];
+}
+
+const COLOR = {
+  activo:"e-verde", disponible:"e-verde", en_ruta:"e-azul", en_transito:"e-azul",
+  en_almacen:"e-gris", pendiente:"e-gris",
+  en_mantenimiento:"e-ambar", mantenimiento:"e-ambar", retrasado:"e-ambar",
+  fuera_de_servicio:"e-rojo", fuera_servicio:"e-rojo", incidente:"e-rojo",
+  con_incidencia:"e-rojo", retenido_aduanera:"e-ambar",
+  entregado:"e-teal", retornado:"e-gris", no_asignable:"e-rojo",
+};
+const etiqueta = e => `<span class="etq ${COLOR[e] || "e-gris"}">${(e||"?").replace(/_/g," ")}</span>`;
+
+const PUNTO = {
+  activo:"var(--verde)", disponible:"var(--verde)", en_ruta:"var(--azul)", en_transito:"var(--azul)",
+  en_almacen:"var(--txt3)", incidente:"var(--rojo)", con_incidencia:"var(--rojo)",
+  retrasado:"var(--ambar)", entregado:"var(--teal)", retornado:"var(--txt3)",
+  retenido_aduanera:"var(--ambar)",
+};
+
+const hora = iso => {
+  if (!iso) return "";
+  try { return new Date(iso).toLocaleString("es-CO", {hour12:false}); } catch { return iso; }
+};
+
+// ---------- salud de los servicios ----------
+async function salud() {
+  const cont = $("servicios");
+  cont.innerHTML = "";
+  for (const [nombre, base] of Object.entries(API)) {
+    const div = document.createElement("div");
+    div.className = "srv";
+    const puerto = base.split(":").pop();
+    div.innerHTML = `<span class="punto" id="p-${nombre}"></span><b>${nombre}</b><small>:${puerto}</small>`;
+    cont.appendChild(div);
+    fetch(`${base}/health`)
+      .then(r => { $(`p-${nombre}`).className = "punto " + (r.ok ? "ok" : "mal"); })
+      .catch(() => { $(`p-${nombre}`).className = "punto mal"; });
+  }
+}
+
+// ---------- flota ----------
+async function cargarFlota() {
+  try {
+    const items = lista(await pedir(`${API.fleet}/api/v1/vehiculos?limite=50`));
+    $("nFlota").textContent = items.length;
+    $("flota").innerHTML = items.length ? items.map(v => `
+      <div class="fila">
+        <div class="principal">
+          <div class="titulo">${v.plate || v.placa}</div>
+          <div class="sub">${v.type || v.tipo} · ${Math.round(v.capacity_kg || v.capacidad_kg)} kg ·
+            ${v.zona || v.zona_operacion || "—"}${v.motivo_estado ? " · " + v.motivo_estado : ""}</div>
+        </div>
+        ${etiqueta(v.status || v.estado)}
+      </div>`).join("") : `<div class="vacio">Sin vehículos. Crea uno con el botón de arriba.</div>`;
+  } catch (e) {
+    $("flota").innerHTML = `<div class="vacio">Fleet no responde<br><small>${e.message}</small></div>`;
+  }
+}
+
+// ---------- envíos ----------
+async function cargarEnvios() {
+  try {
+    const items = lista(await pedir(`${API.shipment}/api/v1/envios`));
+    ultimosEnvios = items;
+    $("nEnvios").textContent = items.length;
+
+    const enRuta = items.find(e => e.id === envioSeleccionado && ["en_ruta","en_transito"].includes(e.estado));
+    $("btnAveria").disabled = !enRuta;
+
+    $("envios").innerHTML = items.length ? items.map(e => `
+      <div class="fila clic ${e.id === envioSeleccionado ? "activa" : ""}" data-id="${e.id}">
+        <div class="principal">
+          <div class="titulo">${e.id.slice(0,8)}</div>
+          <div class="sub">${(e.origen && e.origen.direccion) || "?"} → ${(e.destino && e.destino.direccion) || "?"}
+            ${e.eta ? " · ETA " + hora(e.eta) : ""}</div>
+        </div>
+        ${etiqueta(e.estado)}
+      </div>`).join("") : `<div class="vacio">Sin envíos. Crea uno con el botón de arriba.</div>`;
+
+    document.querySelectorAll("#envios .fila.clic").forEach(f =>
+      f.onclick = () => { envioSeleccionado = f.dataset.id; cargarEnvios(); cargarHistorial(); });
+  } catch (e) {
+    $("envios").innerHTML = `<div class="vacio">Shipment no responde<br><small>${e.message}</small></div>`;
+  }
+}
+
+// ---------- historial ----------
+async function cargarHistorial() {
+  if (!envioSeleccionado) return;
+  $("envioSel").textContent = envioSeleccionado.slice(0,8);
+  try {
+    const h = lista(await pedir(`${API.shipment}/api/v1/envios/${envioSeleccionado}/historial`));
+    $("historial").innerHTML = h.length ? h.map(t => `
+      <div class="hito">
+        <div class="bolita" style="background:${PUNTO[t.hasta] || "var(--txt3)"}"></div>
+        <div class="info">
+          <div class="paso">${t.desde ? `<code>${t.desde}</code> →` : "creado →"} <code>${t.hasta}</code></div>
+          ${t.motivo ? `<div class="motivo">${t.motivo}</div>` : ""}
+          <div class="hora">${hora(t.creada_en || t.creado_en)}</div>
+        </div>
+      </div>`).join("") : `<div class="vacio">Sin transiciones registradas</div>`;
+  } catch (e) {
+    $("historial").innerHTML = `<div class="vacio">No se pudo cargar el historial<br><small>${e.message}</small></div>`;
+  }
+}
+
+// ---------- acciones ----------
+const PLACAS = ["SVK","TRM","FRG","CIS","CAM","LGT","MTR","CRT"];
+
+$("btnVehiculo").onclick = async () => {
+  const placa = PLACAS[Math.floor(Math.random()*PLACAS.length)] + Math.floor(100 + Math.random()*900);
+  try {
+    const v = await pedir(`${API.fleet}/api/v1/vehiculos`, {
+      method:"POST",
+      body: JSON.stringify({
+        plate: placa, type:"refrigerado", capacity_kg:12000, capacity_m3:45,
+        year:2022, insurance_expiry:"2030-12-31",
+        refrigeration_capable:true, hazmat_certified:false, zona:"monteria",
+      }),
+    });
+    log(`Vehículo <b>${v.plate}</b> creado en Fleet`, "ok");
+    cargarFlota();
+  } catch (e) { log(`Error al crear vehículo: ${e.message}`, "err"); }
+};
+
+$("btnEnvio").onclick = async () => {
+  const manana = new Date(Date.now() + 36*3600*1000).toISOString();
+  const pasado = new Date(Date.now() + 48*3600*1000).toISOString();
+  try {
+    const env = await pedir(`${API.shipment}/api/v1/envios`, {
+      method:"POST",
+      body: JSON.stringify({
+        client_id:"ACME-PANEL",
+        origen:{lat:8.7479, lon:-75.8814, direccion:"Bodega Central, Monteria"},
+        destino:{lat:8.8853, lon:-75.7906, direccion:"Planta Cerete"},
+        peso_kg:8000, volumen_m3:30, is_international:false,
+        sla_deadline: pasado,
+        requiere_refrigeracion:true, requiere_hazmat:false,
+        ventana_entrega:{desde: manana, hasta: pasado},
+      }),
+    });
+    envioSeleccionado = env.id;
+    log(`Envío <b>${env.id.slice(0,8)}</b> creado — Shipment publicó <b>shipment.created</b>`, "ok");
+    log(`Esperando a que Routing consulte a Fleet y asigne ruta...`);
+    cargarEnvios(); cargarHistorial();
+  } catch (e) { log(`Error al crear envío: ${e.message}`, "err"); }
+};
+
+$("btnAveria").onclick = async () => {
+  if (!envioSeleccionado) return;
+  try {
+    await pedir(`${API.shipment}/api/v1/envios/${envioSeleccionado}/incidente`, {
+      method:"POST",
+      body: JSON.stringify({
+        tipo:"averia", confirmado:true,
+        motivo:"Falla del sistema de refrigeracion en la via Monteria-Cerete",
+      }),
+    });
+    log(`Avería reportada — Shipment publicó <b>shipment.incident</b>`, "ok");
+    log(`Fleet sacará el vehículo de servicio y Routing intentará reasignar...`);
+    cargarEnvios(); cargarHistorial();
+  } catch (e) { log(`Error al reportar avería: ${e.message}`, "err"); }
+};
+
+$("btnRefrescar").onclick = () => refrescar();
+
+// ---------- ciclo ----------
+function refrescar() {
+  salud(); cargarFlota(); cargarEnvios();
+  if (envioSeleccionado) cargarHistorial();
+}
+
+refrescar();
+setInterval(refrescar, 3000);
+log("Panel iniciado. Si las tarjetas dicen que un servicio no responde, revisa que el stack esté arriba y que CORS esté habilitado.");
+</script>
+</body>
+</html>

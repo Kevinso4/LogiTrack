@@ -35,6 +35,10 @@ class Settings(BaseSettings):
         "vehicle.status_changed",
     ]
 
+    # Reintentos del conector del bus: backoff exponencial 1 s → 30 s.
+    bus_reintento_base_segundos: float = 1.0
+    bus_reintento_maximo_segundos: float = 30.0
+
     # Relay del patrón Outbox
     outbox_intervalo_segundos: float = 1.0
     outbox_lote: int = 100

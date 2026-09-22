@@ -8,6 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.agregador import Agregador
 from app.config import get_settings
@@ -35,13 +36,18 @@ async def lifespan(app: FastAPI):
     configurar_logging(settings.log_level)
 
     publicador = construir_publicador()
-    try:
-        await publicador.conectar()
-    except Exception as exc:
-        log(logger, logging.WARNING, "bus.conexion_diferida", error=str(exc))
 
     relay = RelayOutbox(publicador)
     relay.iniciar()
+
+    conector = None
+    if settings.bus_habilitado:
+        from app.events.conector import ConectorBus
+
+        # Tracking solo publica: el conector reintenta el publicador con
+        # backoff hasta que RabbitMQ acepta la conexión; vive hasta el shutdown.
+        conector = ConectorBus(publicador)
+        conector.iniciar()
 
     agregador = Agregador()
     if settings.agregacion_habilitada:
@@ -49,6 +55,7 @@ async def lifespan(app: FastAPI):
 
     app.state.publicador = publicador
     app.state.relay = relay
+    app.state.conector = conector
     app.state.agregador = agregador
     log(logger, logging.INFO, "servicio.arrancado", servicio=settings.servicio)
 
@@ -57,6 +64,8 @@ async def lifespan(app: FastAPI):
     if settings.agregacion_habilitada:
         await agregador.detener()
     await relay.detener()
+    if conector:
+        await conector.detener()
     await publicador.cerrar()
     log(logger, logging.INFO, "servicio.detenido", servicio=settings.servicio)
 
@@ -76,6 +85,13 @@ def crear_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
     app.add_middleware(MiddlewareTrazas)
+    # Panel de demostración local (file:// -> origin 'null')
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.add_exception_handler(ErrorAplicacion, manejador_error_aplicacion)
     app.include_router(salud.router)
     app.include_router(telemetria.router)

@@ -13,6 +13,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.errores import ErrorAplicacion, manejador_error_aplicacion
@@ -43,16 +44,14 @@ async def lifespan(app: FastAPI):
     configurar_logging(settings.log_level)
 
     publicador = construir_publicador()
-    try:
-        await publicador.conectar()
-    except Exception as exc:  # el broker puede tardar en levantar
-        log(logger, logging.WARNING, "bus.conexion_diferida", error=str(exc))
 
     relay = RelayOutbox(publicador)
     relay.iniciar()
 
     consumidor = None
+    conector = None
     if settings.bus_habilitado:
+        from app.events.conector import ConectorBus
         from app.events.rabbitmq import ConsumidorRabbitMQ
 
         consumidor = ConsumidorRabbitMQ(
@@ -62,18 +61,21 @@ async def lifespan(app: FastAPI):
             routing_keys=settings.eventos_suscritos,
             manejador=manejar_evento,
         )
-        try:
-            await consumidor.iniciar()
-        except Exception as exc:
-            log(logger, logging.WARNING, "consumidor.no_iniciado", error=str(exc))
+        # Reintenta publicador y consumidor con backoff hasta que RabbitMQ
+        # acepta la conexión; la tarea vive hasta el shutdown.
+        conector = ConectorBus(publicador, consumidor)
+        conector.iniciar()
 
     app.state.publicador = publicador
     app.state.relay = relay
+    app.state.conector = conector
     log(logger, logging.INFO, "servicio.arrancado", servicio=settings.servicio)
 
     yield
 
     await relay.detener()
+    if conector:
+        await conector.detener()
     if consumidor:
         await consumidor.detener()
     await publicador.cerrar()
@@ -95,6 +97,13 @@ def crear_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
     app.add_middleware(MiddlewareTrazas)
+    # Panel de demostración local (file:// -> origin 'null')
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.add_exception_handler(ErrorAplicacion, manejador_error_aplicacion)
     app.include_router(salud.router)
     app.include_router(rutas.router)

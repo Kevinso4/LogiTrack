@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     rabbitmq_url: str = "amqp://logitrack:logitrack@localhost:5672/"
     exchange_eventos: str = "logitrack.events"
 
+    # Reintentos del conector del bus: backoff exponencial 1 s → 30 s.
+    bus_reintento_base_segundos: float = 1.0
+    bus_reintento_maximo_segundos: float = 30.0
+
     outbox_intervalo_segundos: float = 1.0
     outbox_lote: int = 200
     outbox_max_intentos: int = 10
