@@ -22,9 +22,10 @@ from typing import Any, Dict, Optional
 from app.base import EventoDominio
 from app.interop import traducir_estado_vehiculo
 
-# Únicos eventos que el puente conoce (los colas solo se suscriben a estos).
-EVENTO_ENTRANTE = "vehicle.status_changed"
-EVENTO_SALIENTE = "shipment.incident"
+# Únicos eventos que el puente conoce (las colas solo se suscriben a estos).
+EVENTO_ENTRANTE = "vehicle.status_changed"   # de ellos hacia nosotros
+EVENTO_SALIENTE = "shipment.incident"        # de nosotros hacia ellos
+EVENTO_TELEMETRIA = "telemetry.aggregated"   # de nosotros hacia su Maintenance
 
 # Sobres: qué clave nuestra equivale a cada clave del compañero.
 SOBRE_COMPANERO_A_PROPIOS = {
@@ -45,6 +46,20 @@ DATOS_ENTRANTES_A_PROPIOS = {
     "estado_nuevo": "estado_nuevo",
     "motivo": "motivo",
     "zona_operacion": "zona",
+}
+
+# telemetry.aggregated: payload propio -> datos del compañero.
+#
+# Los nombres de destino NO son una elección: salen del diccionario CAMPOS
+# de su maintenance-service/app/events/consumer.py, que es literalmente lo
+# que su motor de reglas busca en el evento. Un nombre distinto aquí no da
+# error: simplemente la métrica se salta y la alerta nunca se abre.
+PAYLOAD_TELEMETRIA_A_COMPANERO = {
+    "vehicle_id": "vehiculo_id",
+    "temperatura_motor_max_c": "temperatura_max_c",
+    "odometro_km": "km_acumulados",
+    "horas_motor": "horas_motor",
+    "combustible_pct": "nivel_combustible_pct",
 }
 
 # shipment.incident: payload propio -> datos del compañero.
@@ -81,7 +96,7 @@ def clave_agregado(event_type: str, payload: Dict[str, Any]) -> Optional[str]:
     """El identificador del agregado que el compañero espera en el sobre."""
     if event_type.startswith("shipment."):
         return payload.get("shipment_id")
-    if event_type.startswith("vehicle."):
+    if event_type.startswith("vehicle.") or event_type.startswith("telemetry."):
         return payload.get("vehicle_id")
     return None
 
@@ -129,4 +144,36 @@ def traducir_saliente(evento: EventoDominio) -> Dict[str, Any]:
         "origen": evento.producer,
         "agregado_id": clave_agregado(evento.event_type, evento.payload),
         "datos": traducir_datos_salientes(evento.payload),
+    }
+
+
+def traducir_datos_telemetria(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """payload propio -> datos del compañero, solo las métricas que él evalúa.
+
+    Se descartan los valores `None`. No es cosmética: su consumidor hace
+    `if valor is None: continue`, así que mandar la clave vacía y no mandarla
+    producen el mismo resultado, y omitirla deja el mensaje más limpio de leer
+    cuando haya que depurar por qué no se abrió una alerta.
+
+    El resto del agregado (velocidades, distancia, códigos OBD2, última
+    posición) no se envía: su Maintenance no lo mira. Mandar campos que el
+    receptor ignora es ruido que luego alguien tiene que descartar a mano.
+    """
+    datos = _renombrar(payload, PAYLOAD_TELEMETRIA_A_COMPANERO)
+    return {clave: valor for clave, valor in datos.items() if valor is not None}
+
+
+def traducir_telemetria_saliente(evento: EventoDominio) -> Dict[str, Any]:
+    """`telemetry.aggregated` propio -> sobre del compañero (logitrack.tracking).
+
+    Va por su propia función y no por `traducir_saliente` porque el mapa de
+    campos es distinto: comparten el sobre, no el contenido.
+    """
+    return {
+        "event_id": evento.event_id,
+        "tipo": evento.event_type,
+        "ocurrido_en": evento.occurred_at.isoformat().replace("+00:00", "Z"),
+        "origen": evento.producer,
+        "agregado_id": evento.payload.get("vehicle_id"),
+        "datos": traducir_datos_telemetria(evento.payload),
     }

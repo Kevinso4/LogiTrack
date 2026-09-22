@@ -1,0 +1,246 @@
+# =============================================================================
+# LogiTrack — stack de INTEGRACIÓN (nuestro repo + el de Juan Camilo)
+# =============================================================================
+#
+# Este archivo resuelve los puntos 1 y 2 quitándoles la causa, no parcheando
+# el síntoma. El choque de nombre de proyecto y de puertos aparece porque se
+# intentan levantar DOS sistemas completos a la vez, cada uno con su propio
+# RabbitMQ y su propio PostgreSQL. Pero no son dos sistemas: es uno solo,
+# repartido entre dos repos.
+#
+# Así que aquí hay:
+#   * UN solo broker. Dos RabbitMQ para un mismo bus de eventos no tiene
+#     sentido ni como demo: los servicios no se verían entre sí.
+#   * UNA base por servicio, como manda el diseño, sin duplicados.
+#   * El fleet-service de Juan Camilo, NO el nuestro. El nuestro es una
+#     dependencia de desarrollo que existe para poder testear Routing y
+#     Shipment aislados; en la integración manda el suyo.
+#   * Puertos sin colisión, porque cada servicio aparece UNA vez.
+#
+# -----------------------------------------------------------------------------
+# REQUISITO: los dos repos, clonados uno al lado del otro.
+#
+#   Documents/
+#   ├── LogiTrack/                  <- este repo (aquí vive este archivo)
+#   └── logitrack-microservicios/   <- git clone del suyo
+#
+# PASO 0, OBLIGATORIO — sin esto el build falla con 'path not found':
+#   cd C:\Users\keyne\Documents
+#   git clone https://github.com/juancamilovegatano-cpu/logitrack-microservicios.git
+#
+# Si su carpeta queda con otro nombre, NO hace falta editar este archivo:
+#   $env:RUTA_COMPANERO = '../como-se-llame'
+# antes de levantar el stack.
+#
+# LEVANTAR:
+#   docker compose -f docker-compose.integracion.yml up --build -d
+#
+# El nombre de proyecto es distinto al del desarrollo diario, así que este
+# stack y el normal no se pisan aunque los levantes por error a la vez.
+# =============================================================================
+
+name: logitrack-integracion
+
+services:
+  # ---------------------------------------------------------------------------
+  # Infraestructura compartida: un broker, y una base por servicio
+  # ---------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: logitrack
+      RABBITMQ_DEFAULT_PASS: logitrack
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      # `ping` responde "sano" hasta 20 s antes de que el puerto 5672 acepte
+      # conexiones: dice que el nodo Erlang vive, no que el broker escuche.
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  fleet-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: logitrack
+      POSTGRES_PASSWORD: logitrack
+      POSTGRES_DB: fleet_db
+    ports: ["5432:5432"]
+    volumes: [fleet_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logitrack -d fleet_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  maintenance-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: logitrack
+      POSTGRES_PASSWORD: logitrack
+      POSTGRES_DB: maintenance_db
+    ports: ["5433:5432"]
+    volumes: [maintenance_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logitrack -d maintenance_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  tracking-db:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_USER: logitrack
+      POSTGRES_PASSWORD: logitrack
+      POSTGRES_DB: tracking_db
+    ports: ["5434:5432"]
+    volumes: [tracking_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logitrack -d tracking_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  routing-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: logitrack
+      POSTGRES_PASSWORD: logitrack
+      POSTGRES_DB: routing_db
+    ports: ["5435:5432"]
+    volumes: [routing_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logitrack -d routing_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  shipment-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: logitrack
+      POSTGRES_PASSWORD: logitrack
+      POSTGRES_DB: shipment_db
+    ports: ["5436:5432"]
+    volumes: [shipment_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logitrack -d shipment_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Servicios de Juan Camilo  (dialecto: exchange por dominio, sobre en español)
+  # ---------------------------------------------------------------------------
+  fleet-service:
+    # La ruta sale de RUTA_COMPANERO; el valor por defecto asume que su
+    # repo está clonado al lado de este con su nombre de GitHub.
+    build: ${RUTA_COMPANERO:-../logitrack-microservicios}/fleet-service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://logitrack:logitrack@fleet-db:5432/fleet_db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+    ports:
+      - "8001:8000"   # su contenedor escucha en 8000, no en 8001
+    depends_on:
+      fleet-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    restart: unless-stopped
+
+  maintenance-service:
+    build: ${RUTA_COMPANERO:-../logitrack-microservicios}/maintenance-service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://logitrack:logitrack@maintenance-db:5432/maintenance_db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      # REST síncrono hacia Fleet, por DNS de Docker y no por localhost.
+      FLEET_BASE_URL: http://fleet-service:8000
+    ports:
+      - "8007:8000"   # 8002 es de nuestro tracking-service: este se mueve
+    depends_on:
+      maintenance-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      fleet-service: {condition: service_started}
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Nuestros servicios  (dialecto: exchange único, sobre en inglés)
+  # ---------------------------------------------------------------------------
+  tracking-service:
+    build: ./tracking-service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://logitrack:logitrack@tracking-db:5432/tracking_db
+      POSTGRES_HOST: tracking-db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      BUS_HABILITADO: "true"
+    ports: ["8002:8002"]
+    depends_on:
+      tracking-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    restart: unless-stopped
+
+  routing-service:
+    build: ./routing-service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://logitrack:logitrack@routing-db:5432/routing_db
+      POSTGRES_HOST: routing-db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      # Routing consulta el Fleet DE ÉL por REST. El adaptador traduce los
+      # nombres de campo y el vocabulario de estados (ClienteFleetCompanero).
+      FLEET_URL: http://fleet-service:8000
+      FLEET_DIALECTO: companero
+      BUS_HABILITADO: "true"
+    ports: ["8003:8003"]
+    depends_on:
+      routing-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    restart: unless-stopped
+
+  shipment-service:
+    build: ./shipment-service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://logitrack:logitrack@shipment-db:5432/shipment_db
+      POSTGRES_HOST: shipment-db
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      BUS_HABILITADO: "true"
+    ports: ["8004:8004"]
+    depends_on:
+      shipment-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # El traductor. Sin esto los dos dialectos no se oyen.
+  # ---------------------------------------------------------------------------
+  interop-bridge:
+    build: ./interop-bridge
+    environment:
+      RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+      EXCHANGE_EVENTOS: logitrack.events       # el nuestro
+      EXCHANGE_FLEET: logitrack.fleet          # de él -> nosotros
+      EXCHANGE_SHIPMENT: logitrack.shipment    # nosotros -> su Fleet
+      EXCHANGE_TRACKING: logitrack.tracking    # nosotros -> su Maintenance
+      BUS_HABILITADO: "true"
+    ports: ["8005:8005"]
+    depends_on:
+      rabbitmq: {condition: service_healthy}
+    restart: unless-stopped
+
+volumes:
+  fleet_data:
+  maintenance_data:
+  tracking_data:
+  routing_data:
+  shipment_data:

@@ -27,9 +27,12 @@ class Settings(BaseSettings):
     exchange_fleet: str = "logitrack.fleet"
     # Exchange del compañero: él consume ahí nuestro shipment.incident.
     exchange_shipment: str = "logitrack.shipment"
+    # Exchange del compañero: su Maintenance consume ahí telemetry.aggregated.
+    exchange_tracking: str = "logitrack.tracking"
     # Colas del puente (duraderas, cada una con su DLQ).
     cola_fleet: str = "interop.fleet"
     cola_shipment: str = "interop.shipment"
+    cola_telemetria: str = "interop.telemetria"
 
     # Reintentos del conector del bus: backoff exponencial 1 s → 30 s.
     bus_reintento_base_segundos: float = 1.0
