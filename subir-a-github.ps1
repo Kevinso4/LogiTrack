@@ -183,14 +183,26 @@ if ($pendientes) {
 # =============================================================================
 Titulo '4. GitHub'
 
-gh auth status 2>&1 | Out-Null
+# PowerShell 5.1 convierte en excepción fatal cualquier cosa que un programa
+# externo escriba por la salida de error cuando ErrorActionPreference vale
+# 'Stop'. `gh auth status` informa por esa vía que no hay sesión, lo cual es
+# información normal, no un fallo. A partir de aquí comprobamos el resultado
+# con $LASTEXITCODE, que es lo que de verdad dice si el comando funcionó.
+$ErrorActionPreference = 'Continue'
+
+gh auth status *> $null
 if ($LASTEXITCODE -ne 0) {
-    Aviso 'No estás autenticado. Se abre el login de GitHub...'
+    Aviso 'No hay sesión de GitHub. Se abre el login...'
     Write-Host '  Elige: GitHub.com -> HTTPS -> Y -> Login with a web browser' -ForegroundColor Yellow
+    Write-Host '  (copia el código de 8 caracteres que aparece y pégalo en el navegador)' -ForegroundColor Yellow
+    Write-Host ''
     gh auth login --hostname github.com --git-protocol https --web
-    if ($LASTEXITCODE -ne 0) { Fallo 'El login falló. Corre el script otra vez.'; exit 1 }
+    gh auth status *> $null
+    if ($LASTEXITCODE -ne 0) { Fallo 'El login no se completó. Corre el script otra vez.'; exit 1 }
 }
-$usuario = (gh api user --jq .login)
+
+$usuario = (gh api user --jq .login 2>$null)
+if (-not $usuario) { Fallo 'No pude leer tu usuario de GitHub.'; exit 1 }
 Ok "Autenticado como: $usuario"
 
 $remoto = git remote get-url origin 2>$null
