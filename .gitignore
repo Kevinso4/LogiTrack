@@ -12,3 +12,11 @@ htmlcov/
 .idea/
 .vscode/
 *.log
+
+# --- añadido por subir-a-github.ps1 ---
+.ruff_cache/
+.env.*
+!.env.example
+docker-compose.override.yml
+.DS_Store
+Thumbs.db
