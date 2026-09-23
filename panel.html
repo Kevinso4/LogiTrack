@@ -380,12 +380,12 @@ $("btnVehiculo").onclick = async () => {
     const v = await pedir(`${API.fleet}/api/v1/vehiculos`, {
       method:"POST",
       body: JSON.stringify({
-        plate: placa, type:"refrigerado", capacity_kg:12000, capacity_m3:45,
-        year:2022, insurance_expiry:"2030-12-31",
-        refrigeration_capable:true, hazmat_certified:false, zona:"monteria",
+        placa, tipo:"camion_rigido", capacidad_kg:12000, capacidad_m3:45,
+        anio:2022, vencimiento_seguro:"2030-12-31",
+        refrigerado:true, certificado_hazmat:false,
       }),
     });
-    log(`Vehículo <b>${v.plate}</b> creado en Fleet`, "ok");
+    log(`Vehículo <b>${v.placa}</b> creado en Fleet`, "ok");
     cargarFlota();
   } catch (e) { log(`Error al crear vehículo: ${e.message}`, "err"); }
 };
