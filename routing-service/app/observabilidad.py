@@ -43,6 +43,11 @@ eventos_no_entregados = Counter(
     "conexion = broker inaccesible",
     ["event_type", "motivo"],
 )
+outbox_agotados = Counter(
+    "routing_outbox_eventos_agotados_total",
+    "Eventos que rebasaron outbox_max_intentos: siguen reintentando con "
+    "backoff; debe acercarse a cero cuando el bus está sano",
+)
 rutas_calculadas = Counter(
     "routing_rutas_calculadas_total", "Rutas fijadas o recalculadas", ["estado"]
 )

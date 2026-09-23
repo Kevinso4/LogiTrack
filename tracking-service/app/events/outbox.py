@@ -3,23 +3,27 @@
 Registrar el evento es solo un INSERT en la misma transacción del cambio de
 negocio. Si el commit falla, no hay evento fantasma; si RabbitMQ está caído,
 el evento espera en la tabla y sale cuando el broker vuelve.
+
+El reintento es backoff exponencial, nunca un tope duro: un evento de negocio
+no se abandona. `outbox_max_intentos` es un umbral de alarma (log ERROR +
+métrica `*_outbox_eventos_agotados_total`), no un límite de reintentos.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import SessionLocal
 from app.events.base import EventoDominio, EventoNoRuteable, PublicadorEventos
 from app.models import OutboxEvent
-from app.observabilidad import eventos_no_entregados, log, trace_id_ctx
+from app.observabilidad import eventos_no_entregados, log, outbox_agotados, trace_id_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -74,14 +78,49 @@ class RelayOutbox:
                 logger.exception("outbox.relay.error")
                 await asyncio.sleep(self._settings.outbox_intervalo_segundos * 5)
 
+    def _reprogramar(self, fila: OutboxEvent, motivo: str, ahora: datetime) -> None:
+        """Anota el fallo y programa el siguiente intento con backoff exponencial.
+
+        Espera `intervalo * 2^n` (1 s, 2 s, 4 s…) con tope de
+        `outbox_espera_maxima_segundos`. Al rebasar `outbox_max_intentos` se
+        alarma (log ERROR + métrica) pero SIGUE reintentando: la fila nunca se
+        descarta ni se marca como publicada en silencio.
+        """
+        fila.intentos += 1
+        fila.ultimo_error = motivo
+        espera = min(
+            self._settings.outbox_intervalo_segundos * (2 ** min(fila.intentos - 1, 30)),
+            self._settings.outbox_espera_maxima_segundos,
+        )
+        fila.proximo_intento_en = ahora + timedelta(seconds=espera)
+        if fila.intentos >= self._settings.outbox_max_intentos:
+            outbox_agotados.inc()
+            log(
+                logger,
+                logging.ERROR,
+                "outbox.intentos_agotados",
+                event_id=fila.event_id,
+                event_type=fila.event_type,
+                intentos=fila.intentos,
+                reintento_en=fila.proximo_intento_en,
+                motivo=motivo,
+            )
+
     async def despachar_pendientes(self) -> int:
         """Publica el siguiente lote de eventos no publicados. Devuelve cuántos."""
         async with SessionLocal() as session:
+            ahora = datetime.now(timezone.utc)
             consulta = (
                 select(OutboxEvent)
                 .where(
                     OutboxEvent.published_at.is_(None),
-                    OutboxEvent.intentos < self._settings.outbox_max_intentos,
+                    # Backoff en vez de tope duro: `proximo_intento_en` NULL es
+                    # un evento sin fallos previos (se intenta ya mismo); con
+                    # valor, solo toca reintentar cuando el momento vence.
+                    or_(
+                        OutboxEvent.proximo_intento_en.is_(None),
+                        OutboxEvent.proximo_intento_en <= ahora,
+                    ),
                 )
                 .order_by(OutboxEvent.id)
                 .limit(self._settings.outbox_lote)
@@ -107,8 +146,7 @@ class RelayOutbox:
                 try:
                     await self._publicador.publicar(evento)
                 except EventoNoRuteable as exc:  # mandatory: sin cola destino
-                    fila.intentos += 1
-                    fila.ultimo_error = exc.motivo[:500]
+                    self._reprogramar(fila, exc.motivo[:500], ahora)
                     eventos_no_entregados.labels(fila.event_type, "no_enrutado").inc()
                     log(
                         logger,
@@ -121,8 +159,7 @@ class RelayOutbox:
                     )
                     continue
                 except Exception as exc:  # broker caído: se reintenta luego
-                    fila.intentos += 1
-                    fila.ultimo_error = str(exc)[:500]
+                    self._reprogramar(fila, str(exc)[:500], ahora)
                     eventos_no_entregados.labels(fila.event_type, "conexion").inc()
                     log(
                         logger,

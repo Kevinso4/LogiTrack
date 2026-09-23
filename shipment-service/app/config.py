@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     outbox_intervalo_segundos: float = 1.0
     outbox_lote: int = 100
     outbox_max_intentos: int = 10
+    # Tope del backoff del relay (1 s, 2 s, 4 s… hasta este tope). Superar
+    # outbox_max_intentos solo alarma: el evento sigue reintentando.
+    outbox_espera_maxima_segundos: float = 300.0
 
     # --- reglas de estado del envío ----------------------------------------
     # Cuando el ETA supera el SLA fijado en shipment.created, el envío pasa a

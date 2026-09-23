@@ -44,6 +44,11 @@ eventos_no_entregados = Counter(
     "conexion = broker inaccesible",
     ["event_type", "motivo"],
 )
+outbox_agotados = Counter(
+    "shipment_outbox_eventos_agotados_total",
+    "Eventos que rebasaron outbox_max_intentos: siguen reintentando con "
+    "backoff; debe acercarse a cero cuando el bus está sano",
+)
 envios_creados = Counter(
     "shipment_envios_creados_total", "Envíos creados en total", ["internacional"]
 )

@@ -53,6 +53,11 @@ eventos_no_entregados = Counter(
     "telemetry.aggregated, así que no_enrutado solo puede venir de ahí",
     ["event_type", "motivo"],
 )
+outbox_agotados = Counter(
+    "tracking_outbox_eventos_agotados_total",
+    "Eventos que rebasaron outbox_max_intentos: siguen reintentando con "
+    "backoff; debe acercarse a cero cuando el bus está sano",
+)
 eventos_fallidos = Counter(
     "tracking_eventos_fallidos_total", "Publicaciones fallidas", ["event_type"]
 )

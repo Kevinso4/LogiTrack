@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     outbox_intervalo_segundos: float = 1.0
     outbox_lote: int = 100
     outbox_max_intentos: int = 10
+    # Tope del backoff del relay (1 s, 2 s, 4 s… hasta este tope). Superar
+    # outbox_max_intentos solo alarma: el evento sigue reintentando.
+    outbox_espera_maxima_segundos: float = 300.0
 
     # --- cliente de Fleet (REST síncrono, camino crítico de asignación) ----
     fleet_url: str = "http://localhost:8001"

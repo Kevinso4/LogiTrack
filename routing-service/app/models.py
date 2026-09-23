@@ -121,6 +121,12 @@ class OutboxEvent(Base):
     )
     intentos: Mapped[int] = mapped_column(Integer, default=0)
     ultimo_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Backoff del relay: NULL = sin fallos previos (se intenta ya mismo); con
+    # valor, la fila solo vuelve a la consulta cuando el momento vence. Nunca
+    # se descarta por agotar intentos: eso tiraría un evento de negocio.
+    proximo_intento_en: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
 
 
 class ProcessedEvent(Base):

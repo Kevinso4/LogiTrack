@@ -77,7 +77,8 @@ class EventoNoRuteable(Exception):
 
     Distinguirlo de un fallo de conexión importa al relay del outbox: un
     "no enrutable" no se arregla solo hasta que alguien cree la cola (y habrá
-    que reintentar o agotar `outbox_max_intentos`); un fallo de conexión se
+    que reintentar con backoff; superar `outbox_max_intentos` solo alarma, no
+    descarta el evento); un fallo de conexión se
     resuelve cuando el broker vuelve. En ambos casos el evento queda PENDIENTE
     (nunca se marca como publicado).
     """

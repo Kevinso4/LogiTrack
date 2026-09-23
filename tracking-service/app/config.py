@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     outbox_intervalo_segundos: float = 1.0
     outbox_lote: int = 200
     outbox_max_intentos: int = 10
+    # Tope del backoff del relay (1 s, 2 s, 4 s… hasta este tope). Superar
+    # outbox_max_intentos solo alarma: el evento sigue reintentando.
+    outbox_espera_maxima_segundos: float = 300.0
 
     # --- ingesta -----------------------------------------------------------
     max_lecturas_por_lote: int = 5000
