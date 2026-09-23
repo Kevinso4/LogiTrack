@@ -316,7 +316,9 @@ implementación nueva sin tocar la ingesta.
 bloqueando la cola: se va a `fleet.inbox.dlq` para inspección.
 
 **Observabilidad.** Logs JSON con `trace_id` propagado por la cabecera
-`X-Trace-Id` (la pone el API Gateway) y métricas Prometheus en `/metrics`,
+`X-Trace-Id` (la genera el middleware propio cuando no llega; el API Gateway
+que debería ponerla delante **no existe — pendiente del grupo**) y métricas
+Prometheus en `/metrics`,
 incluidas las que pide el documento para este servicio: lecturas recibidas y
 aceptadas por fabricante, y rechazos etiquetados por motivo.
 
@@ -330,7 +332,8 @@ aceptadas por fabricante, y rechazos etiquetados por motivo.
   pueden simular publicándolos a mano en el exchange desde la consola de
   RabbitMQ o con el endpoint de demo `POST /internal/bus/deliver` (solo
   `DEMO_BUS_INTERNO=true` y fuera de producción/Docker).
-- Autenticación JWT: es responsabilidad del API Gateway. Aquí solo está la
+- Autenticación JWT: **pendiente del grupo** — se delega en un API Gateway
+  que todavía no existe y por tanto no está entregado. Aquí solo está la
   API key de dispositivos IoT en la ingesta.
 
 ## 8. Estructura
