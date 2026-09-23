@@ -1,7 +1,11 @@
 """Health checks: liveness (proceso vivo) y readiness (dependencias).
 
 El readiness distingue "dependencia crítica" de "mejorable": Redis y el bus
-(no críticos) no tiran abajo `/health/ready`; la base de datos sí.
+(no críticos) no tiran abajo `/ready`; la base de datos sí.
+
+Convención unificada del sistema: `/health` y `/ready` (la de la mayoría y la
+más corta). `/health/live` y `/health/ready` quedan como alias mientras los
+healthchecks de Docker y el demo sigan apuntando ahí.
 """
 
 from __future__ import annotations
@@ -19,12 +23,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["salud"])
 
 
-@router.get("/health/live", summary="Liveness: proceso vivo")
+@router.get("/health", summary="Liveness: proceso vivo (convención del sistema)")
+@router.get("/health/live", summary="Liveness: proceso vivo (alias)")
 async def vivir() -> dict:
     return {"estado": "vivo", "servicio": "routing-service"}
 
 
-@router.get("/health/ready", summary="Readiness: dependencias listas")
+@router.get("/ready", summary="Readiness: dependencias listas (convención del sistema)")
+@router.get("/health/ready", summary="Readiness: dependencias listas (alias)")
 async def listo() -> dict:
     dependencias = {"basedatos": "sano"}
     try:
