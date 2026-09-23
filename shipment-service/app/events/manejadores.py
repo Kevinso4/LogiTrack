@@ -9,6 +9,11 @@ Shipment escucha cinco eventos (matriz de la sección 3 + desvío documentado):
 
 Todos los manejadores son idempotentes por `event_id` (processed_events) y
 todas las transiciones pasan por la máquina de estados del dominio.
+
+Solo `ValidationError` y `RecursoNoEncontrado` se descartan ("este mensaje no
+es para mí"): se loguean y el mensaje se confirma. Cualquier otra excepción se
+PROPAGA antes del commit, así que no hay `processed_events` y el consumidor
+manda el mensaje a la DLQ en vez de perder el efecto de negocio en silencio.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import SessionLocal
+from app.errores import RecursoNoEncontrado
 from app.events.base import EventoDominio
 from app.models import ProcessedEvent
 from app.observabilidad import log
@@ -49,7 +55,10 @@ async def manejar_route_assigned(session: AsyncSession, evento: EventoDominio) -
         return
     try:
         await aplicar_route_assigned(session, payload, hacer_commit=False)
-    except Exception as exc:  # RecursoNoEncontrado: mensaje mal encaminado
+    except (ValidationError, RecursoNoEncontrado) as exc:
+        # "Mensaje mal encaminado o inválido": se descarta y se confirma.
+        # Cualquier otro fallo (base caída, deadlock, un bug) se PROPAGA:
+        # sin commit, sin ProcessedEvent, y el consumidor lo manda a la DLQ.
         log(logger, logging.WARNING, "route.assigned.rechazado", error=str(exc))
 
 
@@ -61,7 +70,8 @@ async def manejar_route_recalculated(session: AsyncSession, evento: EventoDomini
         return
     try:
         await aplicar_route_recalculated(session, payload, hacer_commit=False)
-    except Exception as exc:
+    except (ValidationError, RecursoNoEncontrado) as exc:
+        # Descartable (mensaje mal encaminado); el resto se propaga a la DLQ.
         log(logger, logging.WARNING, "route.recalculated.rechazado", error=str(exc))
 
 
@@ -73,7 +83,8 @@ async def manejar_route_unassignable(session: AsyncSession, evento: EventoDomini
         return
     try:
         await aplicar_route_unassignable(session, payload, hacer_commit=False)
-    except Exception as exc:
+    except (ValidationError, RecursoNoEncontrado) as exc:
+        # Descartable (mensaje mal encaminado); el resto se propaga a la DLQ.
         log(logger, logging.WARNING, "route.unassignable.rechazado", error=str(exc))
 
 
@@ -85,7 +96,8 @@ async def manejar_customs_held(session: AsyncSession, evento: EventoDominio) -> 
         return
     try:
         await aplicar_customs_held(session, payload, hacer_commit=False)
-    except Exception as exc:
+    except (ValidationError, RecursoNoEncontrado) as exc:
+        # Descartable (mensaje mal encaminado); el resto se propaga a la DLQ.
         log(logger, logging.WARNING, "customs.held.rechazado", error=str(exc))
 
 
@@ -97,7 +109,8 @@ async def manejar_customs_cleared(session: AsyncSession, evento: EventoDominio) 
         return
     try:
         await aplicar_customs_cleared(session, payload, hacer_commit=False)
-    except Exception as exc:
+    except (ValidationError, RecursoNoEncontrado) as exc:
+        # Descartable (mensaje mal encaminado); el resto se propaga a la DLQ.
         log(logger, logging.WARNING, "customs.cleared.rechazado", error=str(exc))
 
 

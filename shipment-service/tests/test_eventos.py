@@ -88,3 +88,36 @@ async def test_evento_para_envio_inexistente_se_descarta_sin_crashear(
     await manejar_evento(evento)
     async with SessionLocal() as session:
         assert await session.get(ProcessedEvent, "evt-fantasma") is not None
+
+
+async def test_fallo_real_del_manejador_no_se_confirma_y_propaga(
+    evento_route_assigned, monkeypatch
+):
+    """Un `RuntimeError` del manejador NO se marca como procesado (defecto 1.2).
+
+    Antes, un `except Exception` que solo loguea convertía cualquier fallo
+    —base caída, deadlock, un bug— en un WARNING y un commit: el mensaje
+    quedaba en `processed_events`, no se reintentaba y no llegaba a la DLQ,
+    perdiendo el efecto de negocio *y* creyendo que se hizo. Solo las
+    excepciones de "mensaje mal encaminado o inválido" (ValidationError,
+    RecursoNoEncontrado) se descartan; el resto sale del despachador.
+    """
+    import app.events.manejadores as manejadores_mod
+    import pytest
+
+    async def _aplicar_roto(session, payload, hacer_commit=False):
+        raise RuntimeError("la base de datos está caída")
+
+    monkeypatch.setattr(manejadores_mod, "aplicar_route_assigned", _aplicar_roto)
+
+    evento = EventoDominio(
+        event_id="evt-ROTO",
+        event_type="route.assigned",
+        payload=evento_route_assigned["payload"],
+    )
+    with pytest.raises(RuntimeError, match="la base de datos está caída"):
+        await manejar_evento(evento)
+
+    # Sin commit: la excepción sale del despachador y NO se confirma el mensaje.
+    async with SessionLocal() as session:
+        assert await session.get(ProcessedEvent, "evt-ROTO") is None
