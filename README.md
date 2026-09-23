@@ -84,10 +84,10 @@ los eventos se quedan en el outbox.
 
 ```bash
 cd fleet-service    && pytest -q     # 25 tests
-cd tracking-service && pytest -q     # 27 tests
-cd routing-service  && pytest -q     # 56 tests
-cd shipment-service && pytest -q     # 44 tests
-cd interop-bridge   && pytest -q     # 12 tests   # total: 164
+cd tracking-service && pytest -q     # 32 tests
+cd routing-service  && pytest -q     # 63 tests
+cd shipment-service && pytest -q     # 51 tests
+cd interop-bridge   && pytest -q     # 16 tests   # total: 187
 ```
 
 Corren contra SQLite y con el bus en memoria: **no necesitan Docker**, que es
