@@ -87,7 +87,10 @@ def log(logger: logging.Logger, nivel: int, mensaje: str, **contexto: Any) -> No
 
 
 class MiddlewareTrazas(BaseHTTPMiddleware):
-    """Propaga `X-Trace-Id` (lo inyecta el API Gateway) y mide cada petición."""
+    """Propaga `X-Trace-Id` (la reutiliza o la genera si no llega) y mide cada petición.
+
+    Un futuro API Gateway sería quien la inyecte en el borde.
+    """
 
     async def dispatch(self, request: Request, call_next):
         trace_id = request.headers.get("X-Trace-Id") or uuid.uuid4().hex

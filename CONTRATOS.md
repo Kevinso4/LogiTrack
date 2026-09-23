@@ -21,7 +21,7 @@ que **nunca cambia** entre dialectos.
 | `event_type` | `string` | Routing key = tipo (`vehicle.status_changed`, `route.assigned`, …) |
 | `occurred_at` | `string ISO-8601` | UTC, p. ej. `2026-09-20T12:00:00+00:00` |
 | `producer` | `string` | Nombre del servicio que lo originó (`fleet-service`, `routing-service`, …) |
-| `trace_id` | `string \| null` | Cadena de correlación; la inyecta el API Gateway (`X-Trace-Id`) |
+| `trace_id` | `string \| null` | Cadena de correlación; la reutiliza de la cabecera `X-Trace-Id` si llega y si no la genera el middleware propio (un futuro API Gateway sería quien la inyecte) |
 | `payload` | `object` | Depende del tipo; ver sección 4 |
 
 ```json
