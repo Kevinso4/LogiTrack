@@ -61,7 +61,7 @@
   .separador{width:1px;height:24px;background:var(--borde)}
   .aviso{margin-left:auto;color:var(--txt3);font-size:12px}
 
-  .rejilla{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .rejilla{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
   @media(max-width:980px){.rejilla{grid-template-columns:1fr}}
 
   .caja{
@@ -169,6 +169,11 @@
       <h2>Envíos <span class="cuenta" id="nEnvios">0</span></h2>
       <div class="cuerpo" id="envios"><div class="vacio">Sin envíos</div></div>
     </div>
+
+    <div class="caja">
+      <h2>Alertas de mantenimiento <span class="cuenta" id="nAlertas">0</span></h2>
+      <div class="cuerpo" id="alertas"><div class="vacio">Sin alertas abiertas</div></div>
+    </div>
   </div>
 
   <div class="caja" style="margin-top:16px">
@@ -187,6 +192,7 @@ const API = {
   tracking: "http://localhost:8002",
   routing:  "http://localhost:8003",
   shipment: "http://localhost:8004",
+  maintenance: "http://localhost:8006",
 };
 
 let envioSeleccionado = null;
@@ -311,6 +317,31 @@ async function cargarEnvios() {
   }
 }
 
+// ---------- alertas de mantenimiento ----------
+// La placa no viene como campo: Maintenance se la pregunta a Fleet por REST
+// y la escribe dentro del motivo al abrir la alerta (3.2).
+const placaEn = motivo => {
+  const m = /vehículo (\S+)/.exec(motivo || "");
+  return m ? m[1] : "?";
+};
+
+async function cargarAlertas() {
+  try {
+    const items = lista(await pedir(`${API.maintenance}/api/v1/mantenimiento/alertas`));
+    $("nAlertas").textContent = items.length;
+    $("alertas").innerHTML = items.length ? items.map(a => `
+      <div class="fila">
+        <div class="principal">
+          <div class="titulo">${placaEn(a.motivo)}</div>
+          <div class="sub">${a.motivo}</div>
+        </div>
+        ${etiqueta(a.estado)}
+      </div>`).join("") : `<div class="vacio">Sin alertas abiertas</div>`;
+  } catch (e) {
+    $("alertas").innerHTML = `<div class="vacio">Maintenance no responde<br><small>${e.message}</small></div>`;
+  }
+}
+
 // ---------- historial ----------
 async function cargarHistorial() {
   if (!envioSeleccionado) return;
@@ -393,7 +424,7 @@ $("btnRefrescar").onclick = () => refrescar();
 
 // ---------- ciclo ----------
 function refrescar() {
-  salud(); cargarFlota(); cargarEnvios();
+  salud(); cargarFlota(); cargarEnvios(); cargarAlertas();
   if (envioSeleccionado) cargarHistorial();
 }
 
