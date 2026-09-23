@@ -64,9 +64,10 @@ class Settings(BaseSettings):
 
     # --- CORS ---------------------------------------------------------------
     # Orígenes que el navegador puede tocar: de aquí sale allow_origins, que
-    # antes era "*" y dejaba cualquier página llamando a la API. "null" es el
-    # panel.html abierto con doble clic (file://); configurable por CORS_ORIGINS.
-    cors_origins: List[str] = ["http://localhost:5173", "http://localhost:4173", "null"]
+    # antes era "*" y dejaba cualquier página llamando a la API. Lista
+    # explícita (frontend en 5173, panel.html servido en 4173); configurable
+    # por CORS_ORIGINS.
+    cors_origins: List[str] = ["http://localhost:5173", "http://localhost:4173"]
 
     # --- observabilidad ----------------------------------------------------
     log_level: str = "INFO"

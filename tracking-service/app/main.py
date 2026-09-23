@@ -85,8 +85,8 @@ def crear_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
     app.add_middleware(MiddlewareTrazas)
-    # Orígenes permitidos: de settings.cors_origins (frontend en 5173, y el
-    # panel.html de doble clic que llega como origin "null"). Antes "*".
+    # Orígenes permitidos: de settings.cors_origins (frontend en 5173 y
+    # panel.html servido en 4173). Lista explícita; antes "*".
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
