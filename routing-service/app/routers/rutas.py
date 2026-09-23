@@ -135,5 +135,8 @@ async def estado_rutas(session: AsyncSession = Depends(get_session)) -> dict:
     filas = (await session.execute(select(Ruta.estado))).scalars().all()
     por_estado = {e.value: 0 for e in EstadoRuta}
     for e in filas:
-        por_estado[e] += 1
+        # .get y no += directo: la columna es String(30) y puede traer un
+        # estado fuera del enum (dato legado, semilla vieja); sin esto el
+        # health de negocio revienta con KeyError -> 500 (defecto 4.1).
+        por_estado[e] = por_estado.get(e, 0) + 1
     return {"servicio": "routing-service", "rutas_por_estado": por_estado}

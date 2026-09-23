@@ -1,6 +1,6 @@
 """Pruebas de la API HTTP del Routing Service."""
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.database import SessionLocal
 from app.events.base import EventoDominio
@@ -91,6 +91,22 @@ async def test_estado_rutas_cuenta_por_estado(cliente, evento_shipment_created):
     respuesta = await cliente.post("/api/v1/rutas/estado")
     assert respuesta.status_code == 200
     assert respuesta.json()["rutas_por_estado"]["asignada"] == 1
+
+
+async def test_estado_rutas_con_estado_fuera_del_catalogo(cliente, evento_shipment_created):
+    """Defecto 4.1: `por_estado[e] += 1` revienta con KeyError -> 500 si la base
+    guarda un estado que no está en el dict (la columna es String(30), admite
+    lo que sea: un dato legado, una semilla vieja, una tipeada a mano).
+    El health de negocio no debe tumbarse por una fila así: la cuenta igual."""
+    ruta_id = await _crear_ruta(evento_shipment_created)
+    async with SessionLocal() as session:
+        await session.execute(update(Ruta).where(Ruta.id == ruta_id).values(estado="legado"))
+        await session.commit()
+
+    respuesta = await cliente.post("/api/v1/rutas/estado")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["rutas_por_estado"]["legado"] == 1
 
 
 async def test_metricas_prometheus(cliente):
