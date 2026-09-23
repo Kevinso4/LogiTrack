@@ -86,6 +86,10 @@ services:
       EXCHANGE_EVENTOS: logitrack.events
       BUS_HABILITADO: "true"
       ENTORNO: docker
+      # API keys de la ingesta de telemetría (lista JSON). Con ENTORNO de
+      # desarrollo sin claves el servicio NO arranca: no se despliega abierto
+      # por accidente. Puede sobreescritirse con $env:API_KEYS.
+      API_KEYS: ${API_KEYS:-["demo-logitrack"]}
       LOG_LEVEL: INFO
       CHUNK_DIAS: "7"
       VENTANA_AGREGACION_SEGUNDOS: "60"

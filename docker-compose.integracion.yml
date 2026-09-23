@@ -187,6 +187,11 @@ services:
       POSTGRES_HOST: tracking-db
       RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
       BUS_HABILITADO: "true"
+      ENTORNO: docker
+      # API keys de la ingesta de telemetría (lista JSON): sin claves fuera
+      # de desarrollo el servicio no arranca (no se despliega abierto por
+      # accidente). Puede sobreescritirse con $env:API_KEYS.
+      API_KEYS: ${API_KEYS:-["demo-logitrack"]}
     ports: ["8002:8002"]
     depends_on:
       tracking-db: {condition: service_healthy}

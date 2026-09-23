@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     # Monta /internal/bus/deliver solo en entornos locales de demostración.
     demo_bus_interno: bool = False
 
+    # --- CORS ---------------------------------------------------------------
+    # Orígenes que el navegador puede tocar: de aquí sale allow_origins, que
+    # antes era "*" y dejaba cualquier página llamando a la API. "null" es el
+    # panel.html abierto con doble clic (file://); configurable por CORS_ORIGINS.
+    cors_origins: List[str] = ["http://localhost:5173", "http://localhost:4173", "null"]
+
     # --- observabilidad ----------------------------------------------------
     log_level: str = "INFO"
 

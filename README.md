@@ -142,10 +142,12 @@ que pasar por taller (`en_mantenimiento`). Intentarlo devuelve `422`.
 | `GET` | `/api/v1/telemetria/{id}/recorrido?desde&hasta` | Recorrido + distancia (haversine) + velocidades |
 | `POST` | `/api/v1/telemetria/agregacion/ejecutar` | Fuerza el cierre de la ventana de agregación (demo/operación) |
 
-Ejemplo de ingesta con un dispositivo que manda en unidades imperiales:
+Ejemplo de ingesta con un dispositivo que manda en unidades imperiales (el
+compose define `demo-logitrack` como API key; en local sin claves la cabecera
+se omite):
 
 ```bash
-curl -X POST localhost:8002/api/v1/telemetria -H "Content-Type: application/json" -d '{
+curl -X POST localhost:8002/api/v1/telemetria -H "Content-Type: application/json" -H "X-API-Key: demo-logitrack" -d '{
   "device_id": "iot-77",
   "fabricante": "queclink",
   "lecturas": [{

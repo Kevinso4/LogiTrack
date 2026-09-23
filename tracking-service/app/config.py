@@ -3,7 +3,11 @@
 from functools import lru_cache
 from typing import List
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Entornos donde el endpoint de telemetría puede quedarse sin claves.
+ENTORNOS_DESARROLLO = {"local", "desarrollo"}
 
 
 class Settings(BaseSettings):
@@ -42,8 +46,31 @@ class Settings(BaseSettings):
     # Tolerancia de reloj del dispositivo IoT, en minutos.
     tolerancia_futuro_minutos: int = 5
     antiguedad_maxima_horas: int = 72
-    # API keys de los dispositivos embarcados. Vacío = sin autenticación (local).
+    # API keys de los dispositivos embarcados. Vacío = sin autenticación.
     api_keys: List[str] = []
+
+    # --- CORS ---------------------------------------------------------------
+    # Orígenes que el navegador puede tocar: de aquí sale allow_origins, que
+    # antes era "*" y dejaba cualquier página llamando a la API. "null" es el
+    # panel.html abierto con doble clic (file://); configurable por CORS_ORIGINS.
+    cors_origins: List[str] = ["http://localhost:5173", "http://localhost:4173", "null"]
+
+    @model_validator(mode="after")
+    def _exigir_claves_fuera_de_desarrollo(self):
+        """No se arranca desplegado abierto por accidente.
+
+        El mecanismo de API key existía pero venía desactivado: api_keys vacío
+        por defecto y ningún compose lo definía, mientras la documentación
+        afirmaba que la ingesta estaba protegida. Ahora, si no hay claves y el
+        entorno no es de desarrollo, el servicio falla al importar la
+        configuración — es decir, al arrancar — en vez de salir abierto.
+        """
+        if not self.api_keys and self.entorno not in ENTORNOS_DESARROLLO:
+            raise ValueError(
+                f"api_keys vacío en entorno '{self.entorno}': define API_KEYS "
+                "o corre en un entorno de desarrollo (local/desarrollo)"
+            )
+        return self
 
     # --- agregación --------------------------------------------------------
     agregacion_habilitada: bool = True
