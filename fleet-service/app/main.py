@@ -90,10 +90,11 @@ def crear_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
     app.add_middleware(MiddlewareTrazas)
-    # Panel de demostración local (file:// -> origin 'null')
+    # Orígenes explícitos: frontend en 5173 y panel.html servido en 4173
+    # (antes "*" y el origin 'null' del file://). Igual que los otros cuatro.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=["http://localhost:5173", "http://localhost:4173"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
