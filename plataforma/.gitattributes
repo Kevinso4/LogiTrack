@@ -1,0 +1,4 @@
+# Finales de línea LF en todo el repo: los scripts, SQL y Dockerfiles se ejecutan en contenedores Linux.
+* text=auto eol=lf
+*.png binary
+*.ico binary

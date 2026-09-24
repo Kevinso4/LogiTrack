@@ -1,0 +1,159 @@
+# LogiTrack — entorno de desarrollo local
+# Levanta: PostgreSQL 16 + TimescaleDB, RabbitMQ, Redis, API Gateway,
+# Fleet, Tracking, Shipment, Maintenance y el simulador de dispositivos GPS.
+#
+#   docker compose up --build
+#
+# Solo el API Gateway (8000) queda expuesto para las apps. Postgres (5432) y la
+# consola de RabbitMQ (15672) se exponen únicamente para inspección en desarrollo.
+
+x-servicio: &servicio
+  build:
+    context: ./services
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+  environment: &env-comun
+    RABBITMQ_URL: amqp://logitrack:logitrack@rabbitmq:5672/
+    LOG_LEVEL: INFO
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: logitrack
+      POSTGRES_PASSWORD: logitrack
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      # -h 127.0.0.1 fuerza TCP: durante el init.sql Postgres solo escucha por socket,
+      # así que el servicio no se marca sano hasta que las 4 bases existen.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U logitrack -d maintenance_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: logitrack
+      RABBITMQ_DEFAULT_PASS: logitrack
+    ports:
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  gateway:
+    <<: *servicio
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: gateway
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *env-comun
+      SERVICE_NAME: gateway
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      FLEET_URL: http://fleet:8000
+      TRACKING_URL: http://tracking:8000
+      SHIPMENT_URL: http://shipment:8000
+      MAINTENANCE_URL: http://maintenance:8000
+
+  fleet:
+    <<: *servicio
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: fleet
+    environment:
+      <<: *env-comun
+      SERVICE_NAME: fleet
+      DATABASE_URL: postgresql+psycopg://logitrack:logitrack@postgres:5432/fleet_db
+
+  tracking:
+    <<: *servicio
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: tracking
+    environment:
+      <<: *env-comun
+      SERVICE_NAME: tracking
+      DATABASE_URL: postgresql+psycopg://logitrack:logitrack@postgres:5432/tracking_db
+
+  shipment:
+    <<: *servicio
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: shipment
+    environment:
+      <<: *env-comun
+      SERVICE_NAME: shipment
+      DATABASE_URL: postgresql+psycopg://logitrack:logitrack@postgres:5432/shipment_db
+      FLEET_URL: http://fleet:8000
+
+  maintenance:
+    <<: *servicio
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: maintenance
+    environment:
+      <<: *env-comun
+      SERVICE_NAME: maintenance
+      DATABASE_URL: postgresql+psycopg://logitrack:logitrack@postgres:5432/maintenance_db
+
+  simulator:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+      args:
+        SERVICE: simulator
+    command: ["python", "-m", "service.main"]
+    restart: unless-stopped
+    depends_on:
+      - fleet
+      - tracking
+      - shipment
+    environment:
+      SERVICE_NAME: simulator
+      FLEET_URL: http://fleet:8000
+      TRACKING_URL: http://tracking:8000
+      SHIPMENT_URL: http://shipment:8000
+      INTERVALO_SEGUNDOS: "5"
+      PROB_ANOMALIA: "0.004"
+
+volumes:
+  pgdata:
