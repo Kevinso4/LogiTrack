@@ -350,7 +350,7 @@ export default function Envios() {
               const riesgo = !["entregado", "devuelto"].includes(e.estado) && new Date(e.fecha_limite_sla).getTime() - Date.now() < 2 * 3600_000;
               return (
                 <li key={e.id}>
-                  <button onClick={() => setDetalle(e.id)} className="grid w-full grid-cols-[1fr_auto] items-center gap-4 px-5 py-3.5 text-left transition hover:bg-fill/60 sm:grid-cols-[110px_1fr_140px_130px_auto]">
+                  <button onClick={() => setDetalle(e.id)} className="grid w-full grid-cols-[1fr_auto] items-center gap-4 px-5 py-3.5 text-left transition hover:bg-fill/60 sm:grid-cols-[110px_1fr_110px_170px_auto]">
                     <span className="font-mono text-[13px] font-medium">{e.codigo}</span>
                     <span className="min-w-0">
                       <span className="block truncate text-[15px] font-medium">
@@ -368,7 +368,7 @@ export default function Envios() {
                     </span>
                     <span className="hidden text-[13px] sm:block">
                       <span className="block text-label-3">SLA</span>
-                      <span className={cx("font-medium tabular", riesgo && "text-orange")}>{fmtFecha(e.fecha_limite_sla)}</span>
+                      <span className={cx("font-medium tabular whitespace-nowrap", riesgo && "text-orange")}>{fmtFecha(e.fecha_limite_sla)}</span>
                     </span>
                     <span className="flex items-center gap-2">
                       <Badge tono={est.tono} punto>{est.texto}</Badge>

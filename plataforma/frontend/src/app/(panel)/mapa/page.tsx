@@ -80,7 +80,7 @@ export default function Seguimiento() {
             className="h-[60dvh] lg:h-[calc(100dvh-200px)]"
           />
           {v && (
-            <div className="glass absolute right-3 bottom-3 left-3 rounded-[20px] p-4 shadow-sheet ring-1 ring-hairline animate-sheet sm:left-auto sm:w-[360px]">
+            <div className="glass absolute right-3 bottom-8 left-3 rounded-[20px] p-4 shadow-sheet ring-1 ring-hairline animate-sheet sm:left-auto sm:w-[360px]">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-display text-[20px] font-semibold tracking-tight">{v.placa}</p>
